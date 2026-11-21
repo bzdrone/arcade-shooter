@@ -86,6 +86,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
+- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and how the planned Portal-shaped mod layer, weapon and message libraries map onto it.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
 - [Development plan](PLAN.md): agreed next steps and development status.

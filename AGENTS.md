@@ -2,6 +2,7 @@
 
 Read README.md, PLAN.md, main.ts, shooter.ts, and VALIDATION.md before changing the game.
 Read PXT-ARCADE.md before investigating toolchain setup, PXT/compiler restrictions, Blocks, tilemaps, simulator automation, or PNG delivery; it records already-solved pitfalls and source locations. Add durable technical discoveries there rather than repeatedly re-deriving them.
+Read PORTAL.md before designing or changing the Portal-shaped `mod` layer, weapon or message compatibility libraries, or porting material; it records the Portal SDK facts this project relies on.
 
 Keep agreed next steps and temporary development status in PLAN.md, repeatable checks in VALIDATION.md, and durable descriptions and usage in README.md.
 
