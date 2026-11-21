@@ -36,6 +36,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - shooter.ts: game implementation and annotated Blocks API.
 - pxt.json: Arcade project manifest.
+- tests/gameplay.test.cjs: dependency-free host-side logic checks; run with `node --test tests/gameplay.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Development plan](PLAN.md): agreed next steps and development status.

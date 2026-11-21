@@ -17,6 +17,15 @@ namespace shooter {
     let nextSpawnAt = 0
     let enemies: Sprite[] = []
     let health: number[] = []
+    const spentProjectileKind = SpriteKind.create()
+
+    function untrackEnemy(enemy: Sprite): void {
+        const index = enemies.indexOf(enemy)
+        if (index >= 0) {
+            enemies.removeAt(index)
+            health.removeAt(index)
+        }
+    }
 
     /** Configure the weapon before starting the game. Speed is in pixels per second. */
     //% blockId=shooter_set_weapon block="set weapon damage $damage fire interval (ms) $interval projectile speed $speed"
@@ -103,19 +112,20 @@ namespace shooter {
 
         // Keep the health table aligned when an enemy is destroyed for any reason.
         sprites.onDestroyed(SpriteKind.Enemy, function (enemy) {
-            const index = enemies.indexOf(enemy)
-            if (index >= 0) {
-                enemies.removeAt(index)
-                health.removeAt(index)
-            }
+            untrackEnemy(enemy)
         })
 
         sprites.onOverlap(SpriteKind.Projectile, SpriteKind.Enemy, function (projectile, enemy) {
             const index = enemies.indexOf(enemy)
-            if (index < 0) return
+            if (index < 0 || projectile.kind() != SpriteKind.Projectile) return
+            // Consume the shot before destruction callbacks can run. One shot
+            // must not damage multiple enemies sharing the same position.
+            projectile.setKind(spentProjectileKind)
             projectile.destroy()
             health[index] -= weaponDamage
             if (health[index] <= 0) {
+                // Remove immediately; do not depend on destruction event timing.
+                untrackEnemy(enemy)
                 enemy.destroy()
                 info.changeScoreBy(1)
                 if (info.score() >= 20) game.over(true)
@@ -123,6 +133,8 @@ namespace shooter {
         })
 
         sprites.onOverlap(SpriteKind.Player, SpriteKind.Enemy, function (sprite, enemy) {
+            if (enemies.indexOf(enemy) < 0) return
+            untrackEnemy(enemy)
             enemy.destroy()
             info.changeLifeBy(-1)
         })
