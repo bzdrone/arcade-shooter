@@ -54,7 +54,11 @@ The user authorized autonomous implementation of A–D using best judgment, full
 - Add queries for all players, team, human/bot control, alive state, and elimination/death counts.
 - Test the elimination conventions: self-inflicted elimination reports the same attacker and victim; external sprite removal schedules respawn without a point or elimination event.
 
-**B. Messages: generic HUD notifications**
+**B. Messages: generic HUD notifications** (complete; validated)
+
+- Added `messages.ts`: 1.8-second notifications and 2.4-second centered announcements in independent bounded FIFO queues (8 entries each; overflow preserves active text). Audience filtering drops bot/red-only messages. Placeholder formatting accepts strings, numbers and stable player display names without recursive substitution. The bottom health/respawn line is unchanged.
+- Validation: 35 host tests, Arcade build, full local `--arena --png`, exact-source/fresh PNG import, four-block round-trip and hosted `--tilemap` pass. Disposable source-variant simulator checks prove audiences, queue expiry, and movement/firing during messages. Inspected `messages.png`: both message types are readable and leave scoreboard/status visible. Deathmatch emits no new messages and retains baseline gameplay.
+- Slice B PNG: 45,880 bytes; SHA-256 `9cd8df508ee7c18851178d2772e340d8925a0a16cee8b35eeaa91869ddaa360f`. Local export/evidence will be replaced by later slices; no published artifact changed.
 
 - Add short notifications and large centered announcements, targeted to everyone (default), a player, or a team through one union-typed target parameter.
 - Use timed HUD queues, never `game.splash` or another gameplay-blocking UI. On the single screen, show messages for everyone, the human, or the human's team; drop bot-only/opposing-team messages.

@@ -9,6 +9,7 @@
         "main.blocks",
         "shooter.ts",
         "deathmatch.ts",
+        "messages.ts",
         "pathing.ts",
         "tilemap.g.ts",
         "tilemap.g.jres"

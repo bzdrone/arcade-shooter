@@ -286,6 +286,10 @@ async function main() {
                 console.log(`SHA-256: ${projectPNG.sha256}`)
             } finally { await fresh.close() }
         }
+        if (process.argv.includes('--arena')) {
+            await require('./engine-features.cjs').checkMessages({ sim, page, command, editor, text, button, sleep,
+                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
+        }
         assert.deepEqual(pageErrors, [], 'No uncaught browser errors')
         fs.writeFileSync(path.join(artifacts, 'result.json'), JSON.stringify({
             simulator: { start, moved, aimed, firing, released, boundary }, blocks, roundTrip,

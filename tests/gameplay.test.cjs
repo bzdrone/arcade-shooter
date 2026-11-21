@@ -13,7 +13,10 @@ const shooter = fs.readFileSync(path.join(root, 'shooter.ts'), 'utf8').replace(/
     export function registerShot(sprite, attacker) { shots.push(new Shot(sprite, attacker, attacker.weapon.damage)) }
 }`)
 const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8')
-const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode, { mode: 'transform' })
+const messages = fs.readFileSync(path.join(root, 'messages.ts'), 'utf8').replace(/\n}\s*$/, `
+    export function inspect() { return { notifications, announcements } }
+}`)
+const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode + '\n' + messages, { mode: 'transform' })
 
 function createGame(modifyLevel) {
     const level = require('./tilemap-fixture.cjs')()
@@ -64,7 +67,7 @@ function createGame(modifyLevel) {
                 ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
         })) }
     }
-    return { api: context.shooter, mode: context.deathmatch, A, all, level,
+    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, A, all, level,
         state,
         tick(time) { now = time; updates.forEach(handler => handler()) },
         runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
@@ -107,7 +110,7 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
 
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','messages.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
@@ -339,6 +342,37 @@ test('self-inflicted death has identical event players, no kill or deathmatch po
     g.tick(5000)
     human.soldier.sprite.destroy(); g.flush()
     assert.equal(events.length, 1); assert.equal(g.api.getDeaths(human), 1)
+})
+
+test('messages filter targets and substitute literal placeholders without touching game state', () => {
+    const g = createGame(); g.runMain()
+    const [human, bot, red] = g.api.allPlayers(), m = g.messages
+    assert.equal(m.text('{} {} {} {}', human, 2, 'done'), 'YOU 2 done {}')
+    assert.equal(m.text('{} {}', '{}', 'literal'), '{} literal')
+    assert.equal(m.text('{}', red), 'RED 1')
+    m.notify('everyone'); m.notify('human', human); m.notify('team', g.api.getTeam(human))
+    m.notify('bot', bot); m.notify('red', red); m.notify('red team', g.api.getTeam(red))
+    assert.deepEqual(Array.from(m.inspect().notifications, e => e.text), ['everyone', 'human', 'team'])
+    m.announce('large'); assert.equal(m.inspect().announcements.length, 1)
+    assert.ok(g.hud().includes('large')); assert.ok(g.hud().includes('everyone'))
+    assert.equal(g.result, undefined); assert.equal(g.state().blueScore, 0)
+})
+
+test('message queues expire independently, stay bounded and never block firing', () => {
+    const g = createGame(); g.runMain()
+    const m = g.messages
+    m.notify('first'); m.notify('second'); m.announce('announcement')
+    g.A.pressed = true; g.tick(750); g.A.pressed = false
+    assert.ok(g.state().shots.length > 0)
+    g.tick(1799); assert.equal(m.inspect().notifications[0].text, 'first')
+    g.tick(1800); assert.equal(m.inspect().notifications[0].text, 'second')
+    assert.equal(m.inspect().announcements.length, 1)
+    g.tick(2400); assert.equal(m.inspect().announcements.length, 0)
+    g.tick(3600); assert.equal(m.inspect().notifications.length, 0)
+    for (let i = 0; i < 20; i++) m.notify('N' + i)
+    assert.equal(m.inspect().notifications.length, 8)
+    assert.equal(m.inspect().notifications[0].text, 'N0')
+    assert.equal(m.inspect().notifications.at(-1).text, 'N19')
 })
 
 test('invalid or disconnected team spawn tiles are reported', () => {

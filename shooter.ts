@@ -50,7 +50,10 @@ namespace shooter {
         eliminations = 0
         deaths = 0
         variables: number[] = []
-        constructor(public team: number, public human: boolean, public spawnIndex: number, public weapon: Weapon) {}
+        name: string
+        constructor(public team: number, public human: boolean, public spawnIndex: number, public weapon: Weapon) {
+            this.name = human ? "YOU" : team == 0 ? "BLUE BOT" : "RED " + (spawnIndex + 1)
+        }
     }
 
     class Shot {
@@ -79,6 +82,7 @@ namespace shooter {
     export function teamById(id: number): Team { return id == 0 || id == 1 ? teams[id] : null }
     export function getTeam(player: Player): Team { return teams[player.team] }
     export function isHuman(player: Player): boolean { return player.human }
+    export function getDisplayName(player: Player): string { return player.name }
     export function isAlive(player: Player): boolean { return player.soldier != null }
     export function getEliminations(player: Player): number { return player.eliminations }
     export function getDeaths(player: Player): number { return player.deaths }
@@ -350,6 +354,7 @@ namespace shooter {
                 status = seconds > 0 ? "RESPAWN IN " + seconds + "s" : "WAITING FOR BLUE SPAWN"
             }
             target.print(status, 2, 113, 1, image.font5)
+            messages.draw(target)
             for (let i = 0; i < players.length; i++) {
                 const soldier = players[i].soldier
                 if (soldier) {
@@ -362,6 +367,7 @@ namespace shooter {
         game.onUpdate(function () {
             if (finished) return
             const now = game.runtime()
+            messages.update(now)
             for (let i = 0; i < players.length; i++) {
                 const owner = players[i]
                 if (!owner.soldier && now >= owner.respawnAt) spawn(owner, now)
