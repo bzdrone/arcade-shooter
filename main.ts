@@ -1,8 +1,8 @@
 // Start by modifying these settings. Keep the game implementation in shooter.ts.
-// Click the tilemap thumbnail to edit the yard and its wall markings.
+// Click the tilemap to edit cover, walls, and the blue/red soldier spawn tiles.
 tiles.setCurrentTilemap(tilemap`trainingYard`)
 // Weapon: damage per hit, minimum milliseconds between shots, projectile speed.
-shooter.setWeapon(1, 250, 120)
-// Enemies: health, movement speed, minimum milliseconds between spawns.
-shooter.setEnemies(3, 20, 1500)
+shooter.setWeapon(1, 750, 80)
+// All soldiers: health, bot movement speed, minimum respawn delay.
+shooter.setSoldiers(3, 10, 5000)
 shooter.startGame()

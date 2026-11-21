@@ -1,69 +1,90 @@
-// Shared reverse breadth-first search for small Arcade tilemaps. No extension required.
-// Walls are read from the active tilemap: there is no separate navigation layout.
+// Tilemap navigation shared by soldiers. A separate distance field per target
+// lets several bots pursue different soldiers without overwriting each other's routes.
 namespace pathing {
     let columns = 0
     let rows = 0
-    let tileSize = 8
-    let goal = -1
-    let distances: number[] = []
-    let nextRefreshAt = 0
+    let tileSize = 16
 
     export function size(): number { return tileSize }
     export function width(): number { return columns }
     export function height(): number { return rows }
+
+    export function loadMap(): void {
+        const map = game.currentScene().tileMap
+        columns = map && map.data ? map.data.width : 0
+        rows = map && map.data ? map.data.height : 0
+        tileSize = columns > 0 ? 1 << map.scale : 16
+    }
 
     export function walkable(column: number, row: number): boolean {
         return column >= 0 && row >= 0 && column < columns && row < rows
             && !tiles.tileAtLocationIsWall(tiles.getTileLocation(column, row))
     }
 
-    export function reachable(column: number, row: number): boolean {
-        return walkable(column, row) && distances[row * columns + column] >= 0
+    /** Clear a cardinal shot's two-pixel-wide corridor, not just its center line. */
+    export function clearLine(x0: number, y0: number, x1: number, y1: number): boolean {
+        if (x0 != x1 && y0 != y1) return false
+        const length = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))
+        const steps = Math.max(1, Math.ceil(length / 2))
+        for (let i = 0; i <= steps; i++) {
+            const x = x0 + (x1 - x0) * i / steps
+            const y = y0 + (y1 - y0) * i / steps
+            for (let side = -1; side <= 1; side += 2) {
+                const sx = x + (x0 == x1 ? side : 0)
+                const sy = y + (y0 == y1 ? side : 0)
+                if (!walkable(Math.floor(sx / tileSize), Math.floor(sy / tileSize))) return false
+            }
+        }
+        return true
     }
 
-    /** Rebuild at most four times a second, shared by all bots. Force on startup. */
-    export function refresh(target: Sprite, now: number, force: boolean = false): void {
-        if (!force && now < nextRefreshAt) return
-        nextRefreshAt = now + 250
-        const map = game.currentScene().tileMap
-        if (!map || !map.data) {
-            columns = 0
-            rows = 0
-            goal = -1
-            distances = []
-            return
-        }
-        columns = map.data.width
-        rows = map.data.height
-        tileSize = 1 << map.scale
-        distances = []
-        for (let i = 0; i < columns * rows; i++) distances.push(-1)
-        const column = Math.floor(target.x / tileSize)
-        const row = Math.floor(target.y / tileSize)
+    export class Field {
         goal = -1
-        if (!walkable(column, row)) return
-        goal = row * columns + column
-        distances[goal] = 0
-        const queue: number[] = [goal]
-        let head = 0
-        while (head < queue.length) {
-            const cell = queue[head++]
-            const x = cell % columns
-            const y = Math.idiv(cell, columns)
-            const neighbors = [cell - 1, cell + 1, cell - columns, cell + columns]
-            for (let direction = 0; direction < 4; direction++) {
-                if (direction == 0 && x == 0 || direction == 1 && x == columns - 1
-                    || direction == 2 && y == 0 || direction == 3 && y == rows - 1) continue
-                const next = neighbors[direction]
-                if (distances[next] < 0 && walkable(next % columns, Math.idiv(next, columns))) {
-                    distances[next] = distances[cell] + 1
-                    queue.push(next)
+        distances: number[] = []
+        private nextRefreshAt = 0
+        private targetId = -1
+
+        constructor() {}
+
+        reachable(column: number, row: number): boolean {
+            return walkable(column, row) && this.distances[row * columns + column] >= 0
+        }
+
+        /** Rebuild at most four times per second; force on spawn or target replacement. */
+        refresh(target: Sprite, now: number, force: boolean = false): void {
+            if (!force && target.id == this.targetId && now < this.nextRefreshAt) return
+            this.nextRefreshAt = now + 250
+            this.targetId = target.id
+            loadMap()
+            this.distances = []
+            for (let i = 0; i < columns * rows; i++) this.distances.push(-1)
+            const column = Math.floor(target.x / tileSize)
+            const row = Math.floor(target.y / tileSize)
+            this.goal = -1
+            if (!walkable(column, row)) return
+            this.goal = row * columns + column
+            this.distances[this.goal] = 0
+            const queue: number[] = [this.goal]
+            let head = 0
+            while (head < queue.length) {
+                const cell = queue[head++]
+                const x = cell % columns
+                const y = Math.idiv(cell, columns)
+                const neighbors = [cell - 1, cell + 1, cell - columns, cell + columns]
+                for (let direction = 0; direction < 4; direction++) {
+                    if (direction == 0 && x == 0 || direction == 1 && x == columns - 1
+                        || direction == 2 && y == 0 || direction == 3 && y == rows - 1) continue
+                    const next = neighbors[direction]
+                    if (this.distances[next] < 0 && walkable(next % columns, Math.idiv(next, columns))) {
+                        this.distances[next] = this.distances[cell] + 1
+                        queue.push(next)
+                    }
                 }
             }
         }
     }
 
-    /** One 8x8-or-smaller bot. Finish each cardinal waypoint before turning. */
+    /** One 8x8-or-smaller soldier. Finish cardinal waypoints before turning. */
     export class Bot {
         private waypoint = -1
 
@@ -74,19 +95,18 @@ namespace pathing {
             const dy = y - this.sprite.y
             const distance = Math.sqrt(dx * dx + dy * dy)
             if (distance < 0.1) return
-            // Ease into centers so large configured speeds don't overshoot corners.
             const velocity = Math.min(this.speed, distance * 15)
             this.sprite.vx = dx / distance * velocity
             this.sprite.vy = dy / distance * velocity
         }
 
-        update(target: Sprite): void {
+        update(target: Sprite, field: Field): void {
             this.sprite.vx = 0
             this.sprite.vy = 0
-            if (columns == 0 || goal < 0) return
+            if (columns == 0 || field.goal < 0) return
             const column = Math.floor(this.sprite.x / tileSize)
             const row = Math.floor(this.sprite.y / tileSize)
-            if (!reachable(column, row)) {
+            if (!field.reachable(column, row)) {
                 this.waypoint = -1
                 return
             }
@@ -107,8 +127,7 @@ namespace pathing {
                 this.waypoint = -1
             }
             const cell = Math.floor(this.sprite.y / tileSize) * columns + Math.floor(this.sprite.x / tileSize)
-            if (cell == goal) {
-                // Direct pursuit is safe only while both centers share a walkable cell.
+            if (cell == field.goal) {
                 if (Math.floor(target.x / tileSize) == cell % columns
                     && Math.floor(target.y / tileSize) == Math.idiv(cell, columns)) this.steer(target.x, target.y)
                 return
@@ -124,9 +143,8 @@ namespace pathing {
             const neighbors = [cell - 1, cell + 1, cell - columns, cell + columns]
             for (let i = 0; i < neighbors.length; i++) {
                 const next = neighbors[i]
-                // Prevent left/right wrapping and reject stale or blocked steps.
                 if (Math.abs(next % columns - cell % columns) + Math.abs(Math.idiv(next, columns) - Math.idiv(cell, columns)) != 1) continue
-                if (reachable(next % columns, Math.idiv(next, columns)) && distances[next] < distances[cell]) {
+                if (field.reachable(next % columns, Math.idiv(next, columns)) && field.distances[next] < field.distances[cell]) {
                     this.waypoint = next
                     this.steer((next % columns + 0.5) * tileSize, (Math.idiv(next, columns) + 0.5) * tileSize)
                     return

@@ -8,6 +8,7 @@ const puppeteer = require('../../pxt-arcade/node_modules/puppeteer')
 const root = path.resolve(__dirname, '..')
 const file = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'local/exports/arcade-shooter.png'))
 const evidence = path.join(root, 'local/editor-smoke')
+const teamSimulator = require('./team-simulator.cjs')
 
 async function main() {
     const bytes = fs.readFileSync(file)
@@ -37,8 +38,13 @@ async function main() {
         const sim = await page.waitForFrame(frame => frame.url().includes('---simulator'), { timeout: 30000 })
         await sim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 })
         const main = await page.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
-        assert.match(main, /shooter.setWeapon\(1,\s*250,\s*120\)/)
-        assert.match(main, /shooter.setEnemies\(3,\s*20,\s*1500\)/)
+        assert.match(main, /shooter.setWeapon\(1,\s*750,\s*80\)/)
+        assert.match(main, /shooter.setSoldiers\(3,\s*10,\s*5000\)/)
+        await teamSimulator.install(sim)
+        const soldiers = (await sim.evaluate(() => team.snapshot())).soldiers
+        assert.equal(soldiers.filter(s => s.team === 0 && s.alive).length, 2)
+        assert.equal(soldiers.filter(s => s.team === 1 && s.alive).length, 2)
+        assert.ok(soldiers.every(s => s.health === 3))
         await page.screenshot({ path: path.join(evidence, 'hosted-png.png') })
         await page.evaluate(() => {
             const label = Array.from(document.querySelectorAll('span,div')).find(e => e.textContent.trim() === 'Blocks' && e.children.length === 0)
@@ -68,7 +74,7 @@ async function main() {
         assert.deepEqual(errors, [])
         await page.screenshot({ path: path.join(evidence, 'hosted-blocks.png') })
         const result = { file, sha256: createHash('sha256').update(bytes).digest('hex'), versions,
-            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', 'Simulator startup', 'Shooter category and three custom blocks, no grey JavaScript'],
+            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter category and three custom blocks, no grey JavaScript'],
             tilemapEditor: process.argv.includes('--tilemap'),
             limitations: 'Not full gameplay, physical keyboard, lesson, or hosted settings-change validation.' }
         fs.writeFileSync(path.join(evidence, 'hosted-result.json'), JSON.stringify(result, null, 2))

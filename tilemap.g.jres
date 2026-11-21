@@ -28,16 +28,30 @@
         "tilemapTile": true,
         "displayName": "yardLane0"
     },
+    "blueSpawn": {
+        "data": "hwQQABAAAACIiIiIiIiIiIiIiIiIiIiIiJnMzMzMmYiImczMzMyZiIjMmZmZmcyIiMyZmZmZzIiIzJkREZnMiIjMmRERmcyIiMyZERGZzIiIzJkREZnMiIjMmZmZmcyIiMyZmZmZzIiImczMzMyZiIiZzMzMzJmIiIiIiIiIiIiIiIiIiIiIiA==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true,
+        "displayName": "blueSpawn0"
+    },
+    "redSpawn": {
+        "data": "hwQQABAAAAAiIiIiIiIiIiIiIiIiIiIiIjPMzMzMMyIiM8zMzMwzIiLMMzMzM8wiIswzMzMzzCIizDMRETPMIiLMMxERM8wiIswzEREzzCIizDMRETPMIiLMMzMzM8wiIswzMzMzzCIiM8zMzMwzIiIzzMzMzDMiIiIiIiIiIiIiIiIiIiIiIg==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true,
+        "displayName": "redSpawn0"
+    },
     "trainingYard1": {
         "id": "trainingYard1",
         "mimeType": "application/mkcd-tilemap",
-        "data": "MTAwYTAwMDcwMDAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMTAxMDEwNDA0MDEwMTAxMDIwMjAxMDEwMzA0MDQwMTAxMDEwMjAyMDEwMTAzMDQwNDAzMDEwMTAyMDIwMTAxMDEwNDA0MDMwMTAxMDIwMjAxMDEwMTA0MDQwMTAxMDEwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMjIyMjIyMjIyMjAyMDAwMDAwMjAwMjIwMDAwMDIwMDIyMDAwMDIyMDAyMDAwMDAyMjAwMjAwMDAwMDIwMjIyMjIyMjIyMg==",
+        "data": "MTAwYTAwMDcwMDAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMTAxMDEwNDA0MDEwMTAxMDIwMjA1MDEwMzA0MDQwMTAxMDYwMjAyMDEwMTAzMDQwNDAzMDEwMTAyMDIwNTAxMDEwNDA0MDMwMTA2MDIwMjAxMDEwMTA0MDQwMTAxMDEwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMjIyMjIyMjIyMjAyMDAwMDAwMjAwMjIwMDAwMDIwMDIyMDAwMDIyMDAyMDAwMDAyMjAwMjAwMDAwMDIwMjIyMjIyMjIyMg==",
         "tileset": [
             "myTiles.transparency16",
             "myTiles.yardFloor",
             "myTiles.yardWall",
             "myTiles.yardCover",
-            "myTiles.yardLane"
+            "myTiles.yardLane",
+            "myTiles.blueSpawn",
+            "myTiles.redSpawn"
         ],
         "displayName": "trainingYard"
     },

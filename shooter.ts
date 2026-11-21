@@ -1,37 +1,40 @@
-// The implementation stays in TypeScript; the annotated functions are the
-// intentionally small customization surface available to the Blocks editor.
-
+// Two teams, two soldiers each. The human and every bot share combat rules.
 //% color=#C75050 weight=100 block="Shooter"
 namespace shooter {
     let weaponDamage = 1
-    let fireInterval = 250
-    let projectileSpeed = 120
-    let enemyStartingHealth = 3
-    let enemySpeed = 20
-    let spawnInterval = 1500
+    let fireInterval = 750
+    let projectileSpeed = 80
+    let soldierHealth = 3
+    let botSpeed = 10
+    let respawnDelay = 5000
     let started = false
+    let finished = false
     let player: Sprite = null
     let facingX = 1
     let facingY = 0
-    let nextShotAt = 0
-    let nextSpawnAt = 0
-    let enemies: Sprite[] = []
-    let health: number[] = []
-    let bots: pathing.Bot[] = []
-    const spentProjectileKind = SpriteKind.create()
+    let blueScore = 0
+    let redScore = 0
+    const soldierKind = SpriteKind.create()
+    const blueShotKind = SpriteKind.create()
+    const redShotKind = SpriteKind.create()
+    const spentShotKind = SpriteKind.create()
+    let blueSpawns: tiles.Location[] = []
+    let redSpawns: tiles.Location[] = []
+    let soldiers: Soldier[] = []
 
-    function untrackEnemy(enemy: Sprite): void {
-        const index = enemies.indexOf(enemy)
-        if (index >= 0) {
-            enemies.removeAt(index)
-            health.removeAt(index)
-            bots.removeAt(index)
-        }
+    class Soldier {
+        sprite: Sprite = null
+        health = 0
+        respawnAt = 0
+        nextShotAt = 0
+        navigation: pathing.Bot = null
+        field: pathing.Field = new pathing.Field()
+        constructor(public team: number, public human: boolean, public spawnIndex: number) {}
     }
 
-    /** Configure the weapon before starting the game. Speed is in pixels per second. */
+    /** Shared weapon settings for every soldier. Configure before starting. */
     //% blockId=shooter_set_weapon block="set weapon damage $damage fire interval (ms) $interval projectile speed $speed"
-    //% damage.defl=1 damage.min=1 interval.defl=250 interval.min=50 speed.defl=120 speed.min=10
+    //% damage.defl=1 damage.min=1 interval.defl=750 interval.min=50 speed.defl=80 speed.min=10
     //% weight=90
     export function setWeapon(damage: number, interval: number, speed: number): void {
         if (started) return
@@ -40,156 +43,234 @@ namespace shooter {
         projectileSpeed = Math.max(10, Math.round(speed))
     }
 
-    /** Configure enemies before starting the game. Speed is in pixels per second. */
-    //% blockId=shooter_set_enemies block="set enemy health $hitPoints speed $speed spawn interval (ms) $interval"
-    //% hitPoints.defl=3 hitPoints.min=1 speed.defl=20 speed.min=1 interval.defl=1500 interval.min=250
+    /** Shared health/respawn settings; speed applies equally to all three bots. */
+    // Retain the original settings block ID so existing block references remain stable.
+    //% blockId=shooter_set_enemies block="set soldier health $hitPoints bot speed $speed respawn delay (ms) $interval"
+    //% hitPoints.defl=3 hitPoints.min=1 speed.defl=10 speed.min=1 interval.defl=5000 interval.min=1000
     //% weight=80
-    export function setEnemies(hitPoints: number, speed: number, interval: number): void {
+    export function setSoldiers(hitPoints: number, speed: number, interval: number): void {
         if (started) return
-        enemyStartingHealth = Math.max(1, Math.round(hitPoints))
-        enemySpeed = Math.max(1, Math.round(speed))
-        spawnInterval = Math.max(250, Math.round(interval))
+        soldierHealth = Math.max(1, Math.round(hitPoints))
+        botSpeed = Math.max(1, Math.round(speed))
+        respawnDelay = Math.max(1000, Math.round(interval))
     }
 
-    function spawnEnemy(): void {
-        // Bound the number of live enemies so experimentation cannot flood the screen.
-        if (enemies.length >= 6) return
-        const entries: tiles.Location[] = []
-        const size = pathing.size()
-        for (let row = 0; row < pathing.height(); row++) {
-            for (let column = 0; column < pathing.width(); column++) {
-                if (column != 1 && column != pathing.width() - 2 && row != 1 && row != pathing.height() - 2) continue
-                const dx = (column + 0.5) * size - player.x
-                const dy = (row + 0.5) * size - player.y
-                if (pathing.reachable(column, row) && dx * dx + dy * dy >= 40 * 40) {
-                    entries.push(tiles.getTileLocation(column, row))
-                }
+    function soldierFor(sprite: Sprite): Soldier {
+        for (let i = 0; i < soldiers.length; i++) if (soldiers[i].sprite == sprite) return soldiers[i]
+        return null
+    }
+
+    function retire(soldier: Soldier): void {
+        const sprite = soldier.sprite
+        soldier.sprite = null
+        soldier.navigation = null
+        soldier.health = 0
+        soldier.respawnAt = game.runtime() + respawnDelay
+        if (soldier.human) {
+            controller.moveSprite(sprite, 0, 0)
+            player = null
+        }
+        sprite.destroy()
+    }
+
+    function spawn(soldier: Soldier, now: number): void {
+        const entries = soldier.team == 0 ? blueSpawns : redSpawns
+        for (let offset = 0; offset < entries.length; offset++) {
+            const index = (soldier.spawnIndex + offset) % entries.length
+            const location = entries[index]
+            if (!pathing.walkable(location.column, location.row)) continue
+            const x = (location.column + 0.5) * pathing.size()
+            const y = (location.row + 0.5) * pathing.size()
+            let occupied = false
+            for (let i = 0; i < soldiers.length; i++) {
+                const other = soldiers[i].sprite
+                if (other && Math.abs(other.x - x) < 12 && Math.abs(other.y - y) < 12) occupied = true
+            }
+            if (occupied) continue
+            const picture = img`
+                . . 8 8 8 8 . .
+                . 8 8 8 8 8 8 .
+                8 8 1 8 8 1 8 8
+                8 8 f 8 8 f 8 8
+                8 8 8 8 8 8 8 8
+                . 8 8 8 8 8 8 .
+                . 8 . 8 8 . 8 .
+                . 8 . . . . 8 .
+            `
+            if (soldier.team == 1) picture.replace(8, 2)
+            // White helmet stripe distinguishes the human from the blue bot.
+            if (soldier.human) for (let x = 2; x <= 5; x++) picture.setPixel(x, 0, 1)
+            const sprite = sprites.create(picture, soldierKind)
+            tiles.placeOnTile(sprite, location)
+            sprite.setStayInScreen(true)
+            soldier.sprite = sprite
+            soldier.health = soldierHealth
+            soldier.nextShotAt = now + fireInterval
+            soldier.spawnIndex = (index + 1) % entries.length
+            soldier.field.refresh(sprite, now, true)
+            if (soldier.human) {
+                player = sprite
+                facingX = 1
+                facingY = 0
+                controller.moveSprite(sprite, 70, 70)
+            } else {
+                soldier.navigation = new pathing.Bot(sprite, botSpeed)
+            }
+            return
+        }
+        // An occupied/blocked point delays this slot; it never creates another soldier.
+    }
+
+    function fire(soldier: Soldier, dx: number, dy: number, now: number): void {
+        if (now < soldier.nextShotAt) return
+        const picture = img`5 5
+                            5 5`
+        if (soldier.team == 1) picture.replace(5, 3)
+        const shot = sprites.createProjectileFromSprite(picture, soldier.sprite, dx * projectileSpeed, dy * projectileSpeed)
+        shot.setKind(soldier.team == 0 ? blueShotKind : redShotKind)
+        shot.setFlag(SpriteFlag.DestroyOnWall, true)
+        shot.lifespan = 2500
+        soldier.nextShotAt = now + fireInterval
+    }
+
+    function hit(shot: Sprite, sprite: Sprite, team: number, kind: number): void {
+        if (finished || shot.kind() != kind) return
+        const soldier = soldierFor(sprite)
+        if (!soldier || soldier.team == team) return // Friendly shots pass through; no friendly fire.
+        shot.setKind(spentShotKind)
+        shot.destroy()
+        soldier.health -= weaponDamage
+        if (soldier.health > 0) return
+        retire(soldier) // Remove before destruction events or stale overlaps can run.
+        if (team == 0) blueScore++
+        else redScore++
+        if (blueScore >= 10 || redScore >= 10) {
+            finished = true
+            // Paint the final point before game-over captures the scene background.
+            pause(50)
+            game.over(blueScore >= 10)
+        }
+    }
+
+    function targetFor(soldier: Soldier, now: number): Soldier {
+        let target: Soldier = null
+        let best = 1000000
+        const column = Math.floor(soldier.sprite.x / pathing.size())
+        const row = Math.floor(soldier.sprite.y / pathing.size())
+        for (let i = 0; i < soldiers.length; i++) {
+            const other = soldiers[i]
+            if (!other.sprite || other.team == soldier.team) continue
+            other.field.refresh(other.sprite, now)
+            if (!other.field.reachable(column, row)) continue
+            const dx = other.sprite.x - soldier.sprite.x
+            const dy = other.sprite.y - soldier.sprite.y
+            const distance = other.field.distances[row * pathing.width() + column] * pathing.size()
+                + Math.sqrt(dx * dx + dy * dy) / 1000
+            if (distance < best) {
+                best = distance
+                target = other
             }
         }
-        if (entries.length == 0) return
-        const entry = entries[randint(0, entries.length - 1)]
-        const enemy = sprites.create(img`
-            . . 2 2 2 2 . .
-            . 2 2 2 2 2 2 .
-            2 2 1 2 2 1 2 2
-            2 2 f 2 2 f 2 2
-            2 2 2 2 2 2 2 2
-            . 2 2 f f 2 2 .
-            . 2 2 2 2 2 2 .
-            . . 2 . . 2 . .
-        `, SpriteKind.Enemy)
-        tiles.placeOnTile(enemy, entry)
-        enemies.push(enemy)
-        health.push(enemyStartingHealth)
-        bots.push(new pathing.Bot(enemy, enemySpeed))
+        return target
     }
 
-    function fire(): void {
-        const projectile = sprites.createProjectileFromSprite(img`
-            5 5
-            5 5
-        `, player, facingX * projectileSpeed, facingY * projectileSpeed)
-        projectile.lifespan = 1600
-        projectile.setFlag(SpriteFlag.DestroyOnWall, true)
+    function updateBot(soldier: Soldier, now: number): void {
+        const target = targetFor(soldier, now)
+        soldier.sprite.vx = 0
+        soldier.sprite.vy = 0
+        if (!target) return
+        const dx = target.sprite.x - soldier.sprite.x
+        const dy = target.sprite.y - soldier.sprite.y
+        if (Math.abs(dy) <= 3 && pathing.clearLine(soldier.sprite.x, soldier.sprite.y, target.sprite.x, soldier.sprite.y)) {
+            fire(soldier, dx < 0 ? -1 : 1, 0, now)
+        } else if (Math.abs(dx) <= 3 && pathing.clearLine(soldier.sprite.x, soldier.sprite.y, soldier.sprite.x, target.sprite.y)) {
+            fire(soldier, 0, dy < 0 ? -1 : 1, now)
+        } else {
+            soldier.navigation.update(target.sprite, target.field)
+        }
     }
 
-    /** Start one game. Call the settings blocks first. Move with arrows; hold A to fire. */
+    /** Start a 2v2 match. Blue: human + bot. Red: two bots. First team to 10 wins. */
     //% blockId=shooter_start_game block="start shooter"
     //% weight=70
     export function startGame(): void {
         if (started) return
         started = true
         scene.setBackgroundColor(15)
-        player = sprites.create(img`
-            . . 8 8 8 8 . .
-            . 8 8 8 8 8 8 .
-            8 8 1 8 8 1 8 8
-            8 8 f 8 8 f 8 8
-            8 8 8 8 8 8 8 8
-            . 8 8 8 8 8 8 .
-            . 8 . 8 8 . 8 .
-            . 8 . . . . 8 .
-        `, SpriteKind.Player)
-        player.setPosition(scene.screenWidth() / 2, scene.screenHeight() / 2)
-        pathing.refresh(player, game.runtime(), true)
-        // Find the nearest floor center, including after an author moves cover.
-        let nearest = 1000000
-        let start: tiles.Location = null
-        for (let row = 0; row < pathing.height(); row++) {
-            for (let column = 0; column < pathing.width(); column++) {
-                if (!pathing.walkable(column, row)) continue
-                const dx = (column + 0.5) * pathing.size() - scene.screenWidth() / 2
-                const dy = (row + 0.5) * pathing.size() - scene.screenHeight() / 2
-                const distance = dx * dx + dy * dy
-                if (distance < nearest) {
-                    nearest = distance
-                    start = tiles.getTileLocation(column, row)
-                }
-            }
-        }
-        if (!start) {
-            game.splash("The level needs a walkable floor tile.")
+        game.setGameOverScoringType(game.ScoringType.None)
+        game.setGameOverMessage(true, "BLUE TEAM WINS")
+        game.setGameOverMessage(false, "RED TEAM WINS")
+        pathing.loadMap()
+        blueSpawns = tiles.getTilesByType(myTiles.blueSpawn)
+        redSpawns = tiles.getTilesByType(myTiles.redSpawn)
+        // Require two usable points per team so the opening match is genuinely 2v2.
+        let validBlue = 0
+        let validRed = 0
+        for (let i = 0; i < blueSpawns.length; i++) if (pathing.walkable(blueSpawns[i].column, blueSpawns[i].row)) validBlue++
+        for (let i = 0; i < redSpawns.length; i++) if (pathing.walkable(redSpawns[i].column, redSpawns[i].row)) validRed++
+        if (validBlue < 2 || validRed < 2) {
+            finished = true
+            game.splash("Add two walkable blue and two red spawn tiles.")
             game.over(false)
             return
         }
-        tiles.placeOnTile(player, start)
-        pathing.refresh(player, game.runtime(), true)
-        player.setStayInScreen(true)
-        controller.moveSprite(player, 70, 70)
-        info.setLife(5)
-        info.setScore(0)
-        nextSpawnAt = game.runtime() + 1000
-
-        // Keep the health table aligned when an enemy is destroyed for any reason.
-        sprites.onDestroyed(SpriteKind.Enemy, function (enemy) {
-            untrackEnemy(enemy)
+        soldiers = [new Soldier(0, true, 0), new Soldier(0, false, 1), new Soldier(1, false, 0), new Soldier(1, false, 1)]
+        sprites.onDestroyed(soldierKind, function (sprite) {
+            const soldier = soldierFor(sprite)
+            if (soldier) retire(soldier) // External removal schedules a respawn, but awards no point.
         })
-
-        sprites.onOverlap(SpriteKind.Projectile, SpriteKind.Enemy, function (projectile, enemy) {
-            const index = enemies.indexOf(enemy)
-            if (index < 0 || projectile.kind() != SpriteKind.Projectile) return
-            // Consume the shot before destruction callbacks can run. One shot
-            // must not damage multiple enemies sharing the same position.
-            projectile.setKind(spentProjectileKind)
-            projectile.destroy()
-            health[index] -= weaponDamage
-            if (health[index] <= 0) {
-                // Remove immediately; do not depend on destruction event timing.
-                untrackEnemy(enemy)
-                enemy.destroy()
-                info.changeScoreBy(1)
-                if (info.score() >= 20) game.over(true)
+        sprites.onOverlap(blueShotKind, soldierKind, function (shot, sprite) { hit(shot, sprite, 0, blueShotKind) })
+        sprites.onOverlap(redShotKind, soldierKind, function (shot, sprite) { hit(shot, sprite, 1, redShotKind) })
+        const now = game.runtime()
+        for (let i = 0; i < soldiers.length; i++) spawn(soldiers[i], now)
+        for (let i = 0; i < blueSpawns.length + redSpawns.length; i++) {
+            const location = i < blueSpawns.length ? blueSpawns[i] : redSpawns[i - blueSpawns.length]
+            if (!soldiers[0].field.reachable(location.column, location.row)) {
+                finished = true
+                game.splash("Connect every spawn tile with walkable floor.")
+                game.over(false)
+                return
             }
-        })
-
-        sprites.onOverlap(SpriteKind.Player, SpriteKind.Enemy, function (sprite, enemy) {
-            if (enemies.indexOf(enemy) < 0) return
-            untrackEnemy(enemy)
-            enemy.destroy()
-            info.changeLifeBy(-1)
-        })
-
-        game.onUpdate(function () {
-            // Aim along the most recent movement axis; retain aim when stationary.
-            if (player.vx != 0 || player.vy != 0) {
-                if (Math.abs(player.vx) >= Math.abs(player.vy)) {
-                    facingX = player.vx > 0 ? 1 : -1
-                    facingY = 0
-                } else {
-                    facingX = 0
-                    facingY = player.vy > 0 ? 1 : -1
+        }
+        scene.createRenderable(100, function (target) {
+            target.fillRect(0, 0, scene.screenWidth(), 9, 15)
+            target.print("BLUE " + blueScore + "  RED " + redScore, 2, 1, 1, image.font5)
+            target.fillRect(0, 112, scene.screenWidth(), 8, 15)
+            const human = soldiers[0]
+            let status = "YOU HP " + human.health + "  FIRST TO 10"
+            if (!human.sprite) {
+                const seconds = Math.max(0, Math.ceil((human.respawnAt - game.runtime()) / 1000))
+                status = seconds > 0 ? "RESPAWN IN " + seconds + "s" : "WAITING FOR BLUE SPAWN"
+            }
+            target.print(status, 2, 113, 1, image.font5)
+            for (let i = 0; i < soldiers.length; i++) {
+                const soldier = soldiers[i]
+                if (soldier.sprite) {
+                    const width = Math.max(1, Math.round(6 * soldier.health / soldierHealth))
+                    target.fillRect(soldier.sprite.x - 3, soldier.sprite.y - 6, 6, 1, 15)
+                    target.fillRect(soldier.sprite.x - 3, soldier.sprite.y - 6, width, 1, soldier.team == 0 ? 9 : 2)
                 }
             }
+        })
+        game.onUpdate(function () {
+            if (finished) return
             const now = game.runtime()
-            pathing.refresh(player, now)
-            for (let i = 0; i < bots.length; i++) bots[i].update(player)
-            if (controller.A.isPressed() && now >= nextShotAt) {
-                fire()
-                nextShotAt = now + fireInterval
-            }
-            if (now >= nextSpawnAt) {
-                spawnEnemy()
-                nextSpawnAt = now + spawnInterval
+            for (let i = 0; i < soldiers.length; i++) {
+                const soldier = soldiers[i]
+                if (!soldier.sprite && now >= soldier.respawnAt) spawn(soldier, now)
+                if (!soldier.sprite) continue
+                if (soldier.human) {
+                    if (player.vx != 0 || player.vy != 0) {
+                        if (Math.abs(player.vx) >= Math.abs(player.vy)) {
+                            facingX = player.vx > 0 ? 1 : -1
+                            facingY = 0
+                        } else {
+                            facingX = 0
+                            facingY = player.vy > 0 ? 1 : -1
+                        }
+                    }
+                    if (controller.A.isPressed()) fire(soldier, facingX, facingY, now)
+                } else updateBot(soldier, now)
             }
         })
     }

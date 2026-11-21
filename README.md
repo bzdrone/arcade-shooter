@@ -12,9 +12,15 @@ The implementation is primarily TypeScript, with a small Blocks-friendly customi
 
 ## Gameplay and learning model
 
-The example is a top-down shooter with one playfield, one weapon, and one enemy type. Direction buttons move the player; holding **A** fires along the last movement direction. Defeating 20 enemies wins, while enemy contact reduces the player's five lives.
+The example is a **two-versus-two top-down soldier match**: you and one blue bot versus two red bots. Your soldier has a white helmet stripe. Direction buttons move you; holding **A** fires along the last movement axis, retaining aim when you stop.
 
-Learning activities use a predict → change → test → explain loop. Weapon settings expose damage, fire interval, and projectile speed. Enemy settings expose health, speed, and spawn interval.
+- Every soldier starts with **3 health** and uses the same weapon: **1 damage**, **750 ms** between shots, projectiles at **80 px/s**. Small bars above soldiers show remaining health.
+- All three bots move at **10 px/s**, choose reachable opposing soldiers independently, route around walls, and shoot when cardinally aligned with a clear shot. Human movement is **70 px/s**.
+- **Only bullets cause damage.** Touching soldiers is harmless; friendly fire is off, and friendly bullets pass through teammates. Cover blocks both teams and destroys shots.
+- Each elimination earns the shooter's team one point. The **first team to 10** wins. The HUD shows both scores and your health/respawn status; the result screen names the winning team. Press a button there to restart.
+- An eliminated soldier—including you—waits **five seconds**, then returns with full health at a clear spawn tile for its own team. If all its team's points are occupied, it waits rather than spawning on someone. There are always four soldier slots, never a growing swarm.
+
+Learning activities use a predict → change → test → explain loop. Weapon settings apply to **both teams**, exposing damage, fire interval, and projectile speed. Soldier settings expose shared health, bot speed, and respawn delay.
 
 These are transferable shooter concepts, not a universal FPS modding API. The game is a local simulation with no networking or external assets; it does not implement first-person rendering or client/server authority.
 
@@ -25,28 +31,26 @@ The level is a single-screen **10×7 tile training yard**, using standard 16-pix
 ```text
 ##########
 #........#
-#..C.....#
-#..CP.C..#
-#.....C..#
+#B.C....R#
+#..C..C..#
+#B....C.R#
 #........#
 ##########
 ```
 
-`#` is the perimeter, `C` is solid cover, `.` is floor, and `P` is the initial player position (the nearest floor center to screen center).
+`#` is the perimeter, `C` is solid cover, `.` is floor, and `B`/`R` are blue/red spawn tiles. These are tile identities, not just decorative colors. The human starts at the upper blue point and the friendly bot at the lower one; red soldiers start at the two red points. Respawns rotate through available points for that team. Cover is indestructible.
 
-Walls block the player and bots; shots disappear on impact. Cover is indestructible and blocks shots from either side. Enemies spawn on reachable inner-perimeter floor at least 40 pixels from the player, with a maximum of six live enemies. If no safe entry is available, that spawn is skipped.
+In **Blocks**, click the thumbnail in **set tilemap to** to open Arcade's level editor. Use **My Tiles** for this project's floor/wall/cover artwork, and the **wall tool** to mark cells blocked or passable. Changing artwork alone does not change collision. Keep the 10×7 dimensions, 16-pixel tile size, a solid outer border, and connected floor for this initial layout. Use the existing **blueSpawn** and **redSpawn** tiles to move/add team entry points. Keep at least **two walkable spawn tiles per team**, connected by floor to all other spawn tiles; startup reports invalid layouts. Stop/start the simulator after editing.
 
-In **Blocks**, click the thumbnail in **set tilemap to** to open Arcade's level editor. Use **My Tiles** for this project's floor/wall/cover artwork, and the **wall tool** to mark cells blocked or passable. Changing artwork alone does not change collision. Keep the 10×7 dimensions, 16-pixel tile size, a solid outer border, and connected floor for this initial layout. Stop/start the simulator after editing.
-
-`pathing.ts` reads those same wall markings. A shared reverse breadth-first search rebuilds a distance field toward the player every 250 ms. Bots follow cardinal tile-center waypoints, finishing a step before turning so they do not cut through cover corners. If a route is unavailable, they stop and retry as the field refreshes. This is basic pursuit, not tactical cover-seeking; the module is intended for small maps and sprites no larger than 8×8 pixels.
+`pathing.ts` reads those same wall markings. Each target soldier owns an independent reverse breadth-first distance field, refreshed at most every 250 ms and shared by bots pursuing it. Bots select an opposing soldier by shortest reachable tile route, then follow cardinal tile-center waypoints, finishing a step before turning so they do not cut cover corners. If a route is unavailable, they stop and retry. They shoot instead of advancing when aligned and unobstructed. This is basic pursuit and shooting, not tactical cover-seeking; the module is intended for small maps and sprites no larger than 8×8 pixels.
 
 ## Test an exported project PNG
 
 Open https://arcade.makecode.com/ and drag the **original project PNG file** onto the page, or use **Import → Import File**. Press the simulator's Play button if it does not start automatically. No repository checkout, local server, or source-file assembly is needed.
 
-Move with the arrow keys; use the on-screen **A** button or **Space** to fire (click inside the simulator first). Shots follow the last movement axis, keeping that aim when you stop. In **Blocks**, the Shooter category exposes the weapon and enemy settings. After changing a setting, stop and start the simulator to recompile; fast restart can reuse the previous compiled code.
+Move with the arrow keys; use the on-screen **A** button or **Space** to fire (click inside the simulator first). Shots follow the last movement axis, keeping that aim when you stop. In **Blocks**, the Shooter category exposes the weapon and soldier settings. After changing a setting, stop and start the simulator to recompile; fast restart can reuse the previous compiled code.
 
-For a short playtest, try the baseline, then change weapon damage from **1 to 3** and stop/start. Look for understandable aiming, readable sprites and HUD, noticeable weapon changes, and pacing that leaves room to experiment. Report anything confusing or frustrating. The current artifact is a development playtest build, not a fully verified release; lesson Markdown is not embedded.
+For a short playtest, try the baseline, then change weapon damage from **1 to 3** and stop/start. The change applies to every soldier, not only your weapon. Look for understandable aiming, readable teams/HUD, noticeable weapon changes, and pacing that leaves room to experiment. Report anything confusing or frustrating. The current artifact is a development playtest build, not a fully verified release; lesson Markdown is not embedded.
 
 The author-side export/import command and local artifact location are documented in VALIDATION.md; the exact tested artifact and checksum are recorded in PLAN.md.
 
@@ -70,14 +74,15 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: game implementation and annotated Blocks API.
-- pathing.ts: shared tilemap distance field and per-bot waypoint movement.
+- pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
 - tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
 - pxt.json: Arcade project manifest.
 - tests/gameplay.test.cjs / tests/pathing.test.cjs: dependency-free host-side logic and route checks; run with `node --test tests/gameplay.test.cjs tests/pathing.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
-- tests/editor-smoke.cjs: real-editor browser smoke checks and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
+- tests/editor-smoke.cjs / tests/team-simulator.cjs: real-editor browser checks, controlled 2v2 combat/respawn/endgame checks, and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
 - tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
+- [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Development plan](PLAN.md): agreed next steps and development status.
 

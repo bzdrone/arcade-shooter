@@ -1,311 +1,233 @@
-// Host-side logic checks only: this is not a PXT compiler or Arcade simulator.
-// Run with Node.js 22.13+ (built-in TypeScript transformation; no dependencies).
+// Host-side rule checks, not Arcade physics. The private-state inspection hook
+// is injected ONLY into the transformed test copy; it is not shipped in the PNG.
 const assert = require('node:assert/strict')
-const { readFileSync } = require('node:fs')
-const { stripTypeScriptTypes } = require('node:module')
-const { join } = require('node:path')
-const { test } = require('node:test')
+const fs = require('node:fs')
+const path = require('node:path')
 const vm = require('node:vm')
-
-const source = stripTypeScriptTypes(
-    ['pathing.ts', 'shooter.ts'].map(name => readFileSync(join(__dirname, '..', name), 'utf8')).join('\n'),
-    { mode: 'transform' }
-)
+const { stripTypeScriptTypes } = require('node:module')
+const { test } = require('node:test')
+const root = path.resolve(__dirname, '..')
+const shooter = fs.readFileSync(path.join(root, 'shooter.ts'), 'utf8').replace(/\n}\s*$/, `
+    export function inspect() { return { soldiers, blueScore, redScore, player, finished,
+        blueShotKind, redShotKind, spentShotKind, soldierKind, weaponDamage, fireInterval, projectileSpeed } }
+}`)
+const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter, { mode: 'transform' })
 
 function createGame(modifyLevel) {
-    let now = 0
-    let score = 0
-    let life = 0
-    let result
-    let message
-    let nextKind = 10
-    let edge = 0
-    const all = []
-    const updates = []
-    const overlaps = []
-    const destroyed = []
-    const pendingDestruction = []
-    const kinds = { Player: 0, Enemy: 1, Projectile: 2, create: () => nextKind++ }
-    const button = { pressed: false, isPressed() { return this.pressed } }
     const level = require('./tilemap-fixture.cjs')()
     if (modifyLevel) modifyLevel(level)
+    let now = 0, nextKind = 10, nextId = 0, result, message
+    const all = [], updates = [], overlaps = [], destroyed = [], pending = [], renders = []
+    const A = { pressed: false, isPressed() { return this.pressed } }
+    const kinds = { Projectile: 1, create: () => nextKind++ }
+    function makeSprite(kind) {
+        const sprite = { id: nextId++, x: 0, y: 0, vx: 0, vy: 0, dead: false, collisionKind: kind,
+            kind: () => kind, setKind: value => { kind = value },
+            setPosition(x, y) { this.x = x; this.y = y },
+            setStayInScreen() {}, setFlag(flag, value) { this.flags = { ...this.flags, [flag]: value } },
+            destroy() { if (this.dead) return; this.dead = true; pending.push({ kind, sprite: this }) }
+        }
+        all.push(sprite)
+        return sprite
+    }
     const context = vm.createContext({
         Math: Object.assign(Object.create(Math), { idiv: (a, b) => Math.trunc(a / b) }),
-        tiles: level.tiles,
-        tilemap: () => level.map,
-        SpriteFlag: { DestroyOnWall: 1 },
-        img: () => ({}),
-        SpriteKind: kinds,
-        randint: (min, max) => Math.min(max, min + edge),
-        scene: { setBackgroundColor() {}, screenWidth: () => 160, screenHeight: () => 120 },
-        controller: { A: button, moveSprite() {} },
-        info: {
-            setLife: value => { life = value },
-            setScore: value => { score = value },
-            changeLifeBy: value => { life += value; if (life <= 0) result = false },
-            changeScoreBy: value => { score += value },
-            score: () => score
-        },
-        game: {
-            runtime: () => now,
-            currentScene: () => ({ tileMap: level.map }),
-            onUpdate: handler => updates.push(handler),
-            over: won => { result = won },
-            splash: value => { message = value }
-        },
+        pause() {}, img: () => ({ replace() {}, setPixel() {} }), image: { font5: {} },
+        tilemap: () => level.map, myTiles: { blueSpawn: 'myTiles.blueSpawn', redSpawn: 'myTiles.redSpawn' },
+        tiles: level.tiles, SpriteKind: kinds, SpriteFlag: { DestroyOnWall: 1 },
+        scene: { setBackgroundColor() {}, screenWidth: () => 160, screenHeight: () => 120,
+            createRenderable: (_, render) => renders.push(render) },
+        controller: { A, moveSprite(sprite, x, y) { sprite.control = [x, y] } },
+        game: { ScoringType: { None: 0 }, setGameOverScoringType() {}, setGameOverMessage() {},
+            runtime: () => now, currentScene: () => ({ tileMap: level.map }),
+            onUpdate: handler => updates.push(handler), over: value => { result = value }, splash: value => { message = value } },
         sprites: {
             create: (_, kind) => makeSprite(kind),
-            createProjectileFromSprite: (_, player, vx, vy) => {
+            createProjectileFromSprite: (_, from, vx, vy) => {
                 const shot = makeSprite(kinds.Projectile)
-                shot.setPosition(player.x, player.y)
-                shot.vx = vx
-                shot.vy = vy
+                shot.setPosition(from.x, from.y); shot.vx = vx; shot.vy = vy
                 return shot
             },
             onDestroyed: (kind, handler) => destroyed.push({ kind, handler }),
             onOverlap: (a, b, handler) => overlaps.push({ a, b, handler })
         }
     })
-    vm.runInContext('Array.prototype.removeAt = function (i) { return this.splice(i, 1)[0] }', context)
     vm.runInContext(source, context)
-
-    function makeSprite(kind) {
-        const sprite = {
-            vx: 0, vy: 0, dead: false, collisionKind: kind,
-            kind: () => kind,
-            setKind: value => { kind = value },
-            setFlag(flag, value) { this.flags = { ...this.flags, [flag]: value } },
-            setPosition(x, y) { this.x = x; this.y = y },
-            setStayInScreen(value) { this.stayInScreen = value },
-            follow(target, speed) { this.target = target; this.speed = speed },
-            destroy() {
-                if (this.dead) return
-                this.dead = true
-                // Deliberately defer callbacks to exercise collision bookkeeping.
-                pendingDestruction.push({ sprite: this, kind })
-            }
-        }
-        all.push(sprite)
-        return sprite
-    }
-
-    return {
-        api: context.shooter, kinds, button, all,
-        runMain(main) { vm.runInContext(main, context) },
-        get score() { return score },
-        get life() { return life },
-        get result() { return result },
-        get message() { return message },
-        get player() { return all.find(s => s.kind() === kinds.Player) },
-        enemies: () => all.filter(s => s.kind() === kinds.Enemy && !s.dead),
-        shots: () => all.filter(s => s.kind() === kinds.Projectile && !s.dead),
+    return { api: context.shooter, A, all, level,
+        state: () => context.shooter.inspect(),
         tick(time) { now = time; updates.forEach(handler => handler()) },
-        edge(value) { edge = value },
+        runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
+        shot(team) { return makeSprite(team === 0 ? this.state().blueShotKind : this.state().redShotKind) },
         overlap(a, b) {
-            // Call captured handlers even for consumed sprites, to test stale events.
-            overlaps.filter(h => h.b === b.collisionKind && h.a === a.collisionKind)
-                .forEach(h => h.handler(a, b))
+            overlaps.filter(h => h.a === a.collisionKind && h.b === b.collisionKind).forEach(h => h.handler(a, b))
         },
-        flushDestruction() {
-            while (pendingDestruction.length) {
-                const event = pendingDestruction.shift()
-                destroyed.filter(h => h.kind === event.kind).forEach(h => h.handler(event.sprite))
-            }
-        }
+        flush() {
+            while (pending.length) { const event = pending.shift(); destroyed.filter(h => h.kind === event.kind).forEach(h => h.handler(event.sprite)) }
+        },
+        hud() { const lines = []; renders.forEach(render => render({ fillRect() {}, print: text => lines.push(text) })); return lines },
+        get result() { return result }, get message() { return message }
     }
 }
-
-function shoot(game, time) {
-    game.button.pressed = true
-    game.tick(time)
-    game.button.pressed = false
-    return game.shots().at(-1)
+function defeat(g, slot, team) {
+    const target = g.state().soldiers[slot].sprite
+    for (let i = 0; i < 3; i++) g.overlap(g.shot(team), target)
+    return target
+}
+function lineUp(g) {
+    const points = [[24, 24], [40, 24], [136, 24], [120, 24]]
+    g.state().soldiers.forEach((s, i) => s.sprite.setPosition(...points[i]))
 }
 
-test('startup is idempotent and uses the default life, score and position', () => {
-    const g = createGame()
-    g.api.startGame()
-    g.api.startGame()
-    assert.equal(g.all.length, 1)
-    assert.equal(g.life, 5)
-    assert.equal(g.score, 0)
-    assert.deepEqual([g.player.x, g.player.y, g.player.stayInScreen], [72, 56, true])
+test('actual entry point starts exactly two soldiers per team, once', () => {
+    const g = createGame(); g.runMain(); g.api.startGame()
+    const s = g.state()
+    assert.equal(s.soldiers.length, 4)
+    assert.deepEqual(Array.from(s.soldiers, x => x.team), [0, 0, 1, 1])
+    assert.deepEqual(Array.from(s.soldiers, x => x.human), [true, false, false, false])
+    assert.deepEqual(Array.from(s.soldiers, x => x.health), [3, 3, 3, 3])
+    assert.deepEqual(Array.from(s.soldiers, x => [x.sprite.x, x.sprite.y]), [[24, 40], [24, 72], [136, 40], [136, 72]])
+    assert.ok(s.soldiers.every(x => x.human || x.navigation.speed === 10))
+    assert.equal(g.all.length, 4)
 })
 
-test('startup relocates to floor when the original start is blocked', () => {
-    const g = createGame(level => { level.walls[3 * level.width + 4] = true })
-    g.api.startGame()
-    assert.deepEqual([g.player.x, g.player.y], [88, 56])
-})
-
-test('a completely solid level reports missing floor and ends safely', () => {
-    const g = createGame(level => level.walls.fill(true))
-    g.api.startGame()
-    assert.match(g.message, /walkable floor/)
-    assert.equal(g.result, false)
-})
-
-test('spawns skip disconnected or unsafe entries', () => {
-    const g = createGame(level => {
-        level.walls.fill(true)
-        level.walls[3 * level.width + 4] = false
-    })
-    g.api.startGame()
-    g.tick(1000)
-    assert.equal(g.enemies().length, 0)
-})
-
-test('the project manifest packages a Blocks companion and all required sources', () => {
-    const root = join(__dirname, '..')
-    const manifest = JSON.parse(readFileSync(join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts', 'main.blocks', 'shooter.ts', 'pathing.ts', 'tilemap.g.ts', 'tilemap.g.jres']) {
-        assert.ok(manifest.files.includes(name), `${name} must survive project export`)
-        assert.ok(readFileSync(join(root, name), 'utf8').length > 0)
-    }
-    const blocks = readFileSync(join(root, 'main.blocks'), 'utf8')
-    for (const id of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) {
-        assert.ok(blocks.includes(`type="${id}"`))
+test('manifest packages implementation, pathing, Blocks and level assets', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
+    for (const name of ['main.ts','main.blocks','shooter.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+        assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
 
-test('the actual learner entry point starts successfully', () => {
-    const g = createGame()
-    const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8')
-    g.runMain(main)
-    assert.equal(g.life, 5)
-    assert.equal(g.all.length, 1)
-})
-
-test('held fire respects cooldown; aim follows movement and persists at rest', () => {
-    const g = createGame()
-    g.api.startGame()
-    g.button.pressed = true
-    g.tick(0)
-    g.tick(249)
-    assert.equal(g.shots().length, 1)
-    assert.equal(g.shots()[0].vx, 120)
-    assert.equal(g.shots()[0].flags[1], true, 'Projectiles destroy on wall impact')
-    g.player.vy = -70
-    g.tick(250)
-    g.player.vy = 0
-    g.tick(500)
-    assert.equal(g.shots().length, 3)
-    assert.deepEqual(g.shots().slice(1).map(s => [s.vx, s.vy]), [[0, -120], [0, -120]])
-    g.button.pressed = false
+test('human held/released fire uses the shared cooldown and retained aim', () => {
+    const g = createGame(); g.runMain(); g.A.pressed = true
+    const human = g.state().soldiers[0]
+    human.sprite.vy = -70
+    g.tick(749)
+    assert.equal(g.all.length, 4)
     g.tick(750)
-    assert.equal(g.shots().length, 3)
+    const shot = g.all.at(-1)
+    assert.equal(shot.kind(), g.state().blueShotKind)
+    assert.deepEqual([shot.vx, shot.vy], [0, -80])
+    assert.equal(shot.flags[1], true)
+    human.sprite.vy = 0
+    g.tick(1499); assert.equal(g.all.length, 5)
+    g.tick(1500); assert.equal(g.all.length, 6)
+    assert.equal(g.all.at(-1).vy, -80)
+    g.A.pressed = false; g.tick(2250); assert.equal(g.all.length, 6)
 })
 
-test('spawns use reachable floor away from the player and cap at six', () => {
-    const g = createGame()
-    g.api.startGame()
-    g.tick(999)
-    assert.equal(g.enemies().length, 0)
+test('all three bots fire under identical rules and do not target teammates', () => {
+    const g = createGame(); g.runMain(); lineUp(g)
+    g.tick(750)
+    const s = g.state(), shots = g.all.filter(x => x.kind() === s.blueShotKind || x.kind() === s.redShotKind)
+    assert.equal(shots.filter(x => x.kind() === s.blueShotKind).length, 1)
+    assert.equal(shots.filter(x => x.kind() === s.redShotKind).length, 2)
+    assert.ok(shots.every(x => Math.abs(x.vx) === 80 && x.vy === 0))
+    assert.ok(shots.filter(x => x.kind() === s.blueShotKind).every(x => x.vx > 0))
+    assert.ok(shots.filter(x => x.kind() === s.redShotKind).every(x => x.vx < 0))
+    g.tick(1499); assert.equal(g.all.length, 7)
+    g.tick(1500); assert.equal(g.all.length, 10)
+})
+
+test('cover blocks bot shots and bots pursue rather than shoot through it', () => {
+    const g = createGame(); g.runMain(); g.tick(750)
+    assert.equal(g.all.length, 4)
+    assert.ok(g.state().soldiers.slice(1).some(s => Math.hypot(s.sprite.vx, s.sprite.vy) > 0))
+    assert.ok(g.state().soldiers.slice(1).every(s => Math.hypot(s.sprite.vx, s.sprite.vy) <= 10.001))
+})
+
+test('touching soldiers causes no damage or points', () => {
+    const g = createGame(); g.runMain()
+    const s = g.state(); g.overlap(s.soldiers[0].sprite, s.soldiers[2].sprite)
+    assert.ok(s.soldiers.every(x => x.health === 3))
+    assert.equal(g.state().blueScore + g.state().redScore, 0)
+})
+
+test('friendly fire is off, and a friendly shot can continue to an opponent', () => {
+    const g = createGame(); g.runMain()
+    const s = g.state(), shot = g.shot(0)
+    g.overlap(shot, s.soldiers[1].sprite)
+    assert.equal(s.soldiers[1].health, 3); assert.equal(shot.dead, false)
+    g.overlap(shot, s.soldiers[2].sprite)
+    assert.equal(s.soldiers[2].health, 2); assert.equal(shot.dead, true)
+})
+
+test('consumed projectiles and defeated soldiers reject stale overlaps', () => {
+    const g = createGame(); g.api.setWeapon(3, 750, 80); g.api.startGame()
+    const s = g.state(), target = s.soldiers[2].sprite, shot = g.shot(0)
+    g.overlap(shot, target); g.overlap(shot, target); g.overlap(shot, s.soldiers[3].sprite)
+    assert.equal(g.state().blueScore, 1); assert.equal(s.soldiers[3].health, 3)
+    g.overlap(g.shot(0), target); g.flush()
+    assert.equal(g.state().blueScore, 1)
+    assert.equal(s.soldiers[2].sprite, null)
+})
+
+for (const [name, slot, team] of [['human', 0, 1], ['friendly bot', 1, 1], ['red bot', 2, 0]]) {
+    test(`${name} has three-hit health and waits five seconds to respawn`, () => {
+        const g = createGame(); g.runMain(); g.tick(100)
+        const s = g.state().soldiers[slot], old = s.sprite
+        const first = g.shot(team); g.overlap(first, old)
+        assert.equal(s.health, 2); assert.equal(s.sprite, old)
+        g.overlap(g.shot(team), old); assert.equal(s.health, 1)
+        g.overlap(g.shot(team), old); assert.equal(s.sprite, null)
+        assert.equal(s.respawnAt, 5100)
+        if (slot === 0) { assert.equal(g.state().player, null); assert.match(g.hud()[1], /RESPAWN IN 5s/) }
+        g.tick(5099); assert.equal(s.sprite, null)
+        g.tick(5100); assert.ok(s.sprite && s.sprite !== old); assert.equal(s.health, 3)
+        assert.equal(g.state().soldiers.length, 4)
+        if (slot === 0) assert.equal(g.state().player, s.sprite)
+    })
+}
+
+test('occupied spawn points delay respawn until a point becomes clear', () => {
+    const g = createGame(); g.runMain(); defeat(g, 0, 1)
+    const s = g.state().soldiers
+    s[1].sprite.setPosition(24, 40); s[2].sprite.setPosition(24, 72)
+    g.tick(5000); assert.equal(s[0].sprite, null)
+    assert.match(g.hud()[1], /WAITING FOR BLUE SPAWN/)
+    s[2].sprite.setPosition(120, 24)
+    g.tick(5001); assert.ok(s[0].sprite)
+    assert.deepEqual([s[0].sprite.x, s[0].sprite.y], [24, 72])
+})
+
+test('external sprite removal schedules respawn without an elimination point', () => {
+    const g = createGame(); g.runMain()
+    g.state().soldiers[2].sprite.destroy(); g.flush()
+    assert.equal(g.state().soldiers[2].sprite, null)
+    assert.equal(g.state().blueScore, 0)
+    g.tick(4999); assert.equal(g.state().soldiers[2].sprite, null)
+    g.tick(5000); assert.ok(g.state().soldiers[2].sprite)
+})
+
+for (const [team, slot, won] of [[0, 2, true], [1, 0, false]]) test(`team ${team} wins at ten eliminations`, () => {
+    const g = createGame(); g.api.setWeapon(3, 750, 80); g.api.startGame()
     for (let i = 0; i < 10; i++) {
-        g.edge(i % 4)
-        g.tick(1000 + i * 1500)
+        g.tick(i * 5000)
+        const sprite = g.state().soldiers[slot].sprite
+        assert.ok(sprite); g.overlap(g.shot(team), sprite); g.flush()
+        if (i < 9) assert.equal(g.result, undefined)
     }
-    const enemies = g.enemies()
-    assert.equal(enemies.length, 6)
-    const level = require('./tilemap-fixture.cjs')()
-    for (const enemy of enemies) {
-        const column = Math.floor(enemy.x / level.size), row = Math.floor(enemy.y / level.size)
-        assert.ok(!level.walls[row * level.width + column])
-        assert.ok(Math.hypot(enemy.x - g.player.x, enemy.y - g.player.y) >= 40)
-        assert.ok(Math.hypot(enemy.vx, enemy.vy) <= 20)
-    }
+    assert.equal(g.result, won)
+    assert.equal(team === 0 ? g.state().blueScore : g.state().redScore, 10)
+    const other = g.state().soldiers[slot === 0 ? 1 : 3].sprite
+    g.overlap(g.shot(team), other)
+    assert.equal(team === 0 ? g.state().blueScore : g.state().redScore, 10)
 })
 
-test('three default hits defeat an enemy exactly once, even before destruction callbacks', () => {
-    const g = createGame()
-    g.api.startGame()
-    g.tick(1000)
-    const enemy = g.enemies()[0]
-    for (let i = 0; i < 3; i++) {
-        g.overlap(shoot(g, 1000 + i * 250), enemy)
-        assert.equal(g.score, i === 2 ? 1 : 0)
-    }
-    g.overlap(g.player, enemy)
-    assert.equal(g.life, 5)
-    g.flushDestruction()
-    assert.equal(g.enemies().length, 0)
+test('settings clamp and remain immutable after startup', () => {
+    const g = createGame(); g.api.setWeapon(-2, -2, -2); g.api.setSoldiers(-2, -2, -2); g.api.startGame()
+    g.api.setWeapon(99, 9999, 9999); g.api.setSoldiers(99, 99, 9999)
+    assert.equal(g.state().weaponDamage, 1); assert.equal(g.state().fireInterval, 50); assert.equal(g.state().projectileSpeed, 10)
+    assert.ok(g.state().soldiers.every(s => s.health === 1))
+    assert.ok(g.state().soldiers.slice(1).every(s => s.navigation.speed === 1))
+    g.overlap(g.shot(0), g.state().soldiers[2].sprite)
+    assert.equal(g.state().soldiers[2].respawnAt, 1000)
 })
 
-test('one projectile cannot hit twice or damage two overlapping enemies', () => {
-    const g = createGame()
-    g.api.setEnemies(1, 20, 250)
-    g.api.startGame()
-    g.tick(1000)
-    g.tick(1250)
-    const [first, second] = g.enemies()
-    const shot = shoot(g, 1250)
-    g.overlap(shot, first)
-    g.overlap(shot, first)
-    g.overlap(shot, second)
-    assert.equal(g.score, 1)
-    assert.equal(second.dead, false)
-})
-
-test('contact costs one life without score; removal frees a spawn slot', () => {
-    const g = createGame()
-    g.api.startGame()
-    for (let i = 0; i < 6; i++) g.tick(1000 + i * 1500)
-    const enemy = g.enemies()[0]
-    g.overlap(g.player, enemy)
-    g.overlap(g.player, enemy)
-    assert.equal(g.life, 4)
-    assert.equal(g.score, 0)
-    g.tick(10000)
-    assert.equal(g.enemies().length, 6)
-    g.flushDestruction()
-})
-
-test('settings clamp minima and cannot change after startup', () => {
-    const g = createGame()
-    g.api.setWeapon(-1, -1, -1)
-    g.api.setEnemies(-1, -1, -1)
-    g.api.startGame()
-    g.api.setWeapon(99, 9999, 9999)
-    g.api.setEnemies(99, 99, 9999)
-    const first = shoot(g, 0)
-    assert.equal(first.vx, 10)
-    g.button.pressed = true
-    g.tick(49)
-    assert.equal(g.shots().length, 1)
-    g.tick(50)
-    assert.equal(g.shots().length, 2)
-    g.tick(1000)
-    const enemy = g.enemies()[0]
-    assert.ok(Math.hypot(enemy.vx, enemy.vy) <= 1)
-    g.overlap(first, enemy)
-    assert.equal(g.score, 1)
-    g.tick(1250)
-    assert.equal(g.enemies().length, 1)
-})
-
-test('configured damage rounds to whole numbers and 20 kills wins', () => {
-    const g = createGame()
-    g.api.setWeapon(1.6, 50, 120)
-    g.api.setEnemies(2, 20, 250)
-    g.api.startGame()
-    for (let i = 0; i < 20; i++) {
-        const time = 1000 + i * 250
-        g.tick(time)
-        g.overlap(shoot(g, time), g.enemies()[0])
-        g.flushDestruction()
-    }
-    assert.equal(g.score, 20)
-    assert.equal(g.result, true)
-})
-
-test('externally destroyed enemies are removed from the health table', () => {
-    const g = createGame()
-    g.api.startGame()
-    g.tick(1000)
-    g.enemies()[0].destroy()
-    g.flushDestruction()
-    g.tick(2500)
-    const enemy = g.enemies()[0]
-    for (let i = 0; i < 3; i++) g.overlap(shoot(g, 2500 + i * 250), enemy)
-    assert.equal(g.score, 1)
+test('invalid or disconnected team spawn tiles are reported', () => {
+    const missing = createGame(level => level.indices.fill(1)); missing.api.startGame()
+    assert.match(missing.message, /two walkable blue and two red/); assert.equal(missing.result, false)
+    const blocked = createGame(level => level.walls.fill(true)); blocked.api.startGame()
+    assert.match(blocked.message, /two walkable/)
+    const split = createGame(level => { for (let row = 1; row < 6; row++) level.walls[row * level.width + 4] = true })
+    split.api.startGame(); assert.match(split.message, /Connect every spawn/); assert.equal(split.result, false)
 })

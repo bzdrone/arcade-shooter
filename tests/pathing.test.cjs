@@ -13,9 +13,12 @@ function setup() {
         tiles: level.tiles, game: { currentScene: () => ({ tileMap: level.map }) }
     })
     vm.runInContext(source, context)
-    const sprite = (column, row) => ({ x: (column + 0.5) * level.size, y: (row + 0.5) * level.size, vx: 0, vy: 0,
+    let id = 0
+    const sprite = (column, row) => ({ id: id++, x: (column + 0.5) * level.size, y: (row + 0.5) * level.size, vx: 0, vy: 0,
         setPosition(x, y) { this.x = x; this.y = y } })
-    return { ...level, api: context.pathing, sprite }
+    const field = new context.pathing.Field()
+    const api = { ...context.pathing, refresh: (...args) => field.refresh(...args), reachable: (...args) => field.reachable(...args) }
+    return { ...level, api, field, sprite }
 }
 function pursue(s, from, target, ticks = 1600, moveTarget) {
     const bot = new s.api.Bot(from, 20)
@@ -23,7 +26,7 @@ function pursue(s, from, target, ticks = 1600, moveTarget) {
     for (let i = 0; i < ticks; i++) {
         if (moveTarget) moveTarget(i, target)
         s.api.refresh(target, i * 16, i === 0)
-        bot.update(target)
+        bot.update(target, s.field)
         from.x += from.vx * 0.016
         from.y += from.vy * 0.016
         const column = Math.floor(from.x / s.size), row = Math.floor(from.y / s.size)
@@ -71,7 +74,7 @@ test('unreachable goals stop bots, and reopening a passage resumes pursuit', () 
     for (let y = 1; y < 6; y++) s.walls[y * s.width + 2] = true
     s.api.refresh(target, 0, true)
     const bot = new s.api.Bot(from, 20)
-    bot.update(target)
+    bot.update(target, s.field)
     assert.equal(from.vx, 0)
     assert.equal(from.vy, 0)
     assert.equal(s.api.reachable(1, 3), false)
@@ -80,11 +83,43 @@ test('unreachable goals stop bots, and reopening a passage resumes pursuit', () 
     assert.ok(Math.hypot(from.x - target.x, from.y - target.y) < 1)
 })
 
+test('target fields stay independent and refresh when a sprite is replaced', () => {
+    const s = setup(), left = s.sprite(1, 1), right = s.sprite(8, 5)
+    const other = new s.api.Field()
+    s.field.refresh(left, 0)
+    const goal = s.field.goal, distances = Array.from(s.field.distances)
+    other.refresh(right, 0)
+    assert.notEqual(other.goal, goal)
+    assert.deepEqual(Array.from(s.field.distances), distances)
+    left.setPosition(40, 24)
+    s.field.refresh(left, 249)
+    assert.equal(s.field.goal, goal, 'Same target is throttled')
+    s.field.refresh(left, 250)
+    assert.equal(s.field.goal, 12)
+    const replacement = s.sprite(4, 1)
+    s.field.refresh(replacement, 251)
+    assert.equal(s.field.goal, 14, 'New sprite bypasses old refresh deadline')
+    assert.equal(other.goal, 58, 'Other target remains unchanged')
+})
+
+test('cardinal shot corridors respect cover, map edges and projectile width', () => {
+    const s = setup(); s.api.loadMap()
+    assert.equal(s.api.clearLine(24, 24, 136, 24), true)
+    assert.equal(s.api.clearLine(24, 56, 72, 56), false)
+    assert.equal(s.api.clearLine(72, 24, 72, 88), true)
+    assert.equal(s.api.clearLine(56, 24, 56, 88), false)
+    assert.equal(s.api.clearLine(24, 24, 72, 88), false, 'No diagonal shots')
+    assert.equal(s.api.clearLine(24, 30, 72, 30), true)
+    assert.equal(s.api.clearLine(24, 31, 72, 31), false, 'Bullet edge clips cover')
+    assert.equal(s.api.clearLine(24, 24, -8, 24), false)
+    assert.equal(s.api.clearLine(24, 24, 24, 24), true)
+})
+
 test('blocked goals and out-of-map cells are rejected', () => {
     const s = setup(), from = s.sprite(1, 3), target = s.sprite(3, 2)
     s.api.refresh(target, 0, true)
     const bot = new s.api.Bot(from, 20)
-    bot.update(target)
+    bot.update(target, s.field)
     assert.equal(from.vx, 0)
     assert.equal(from.vy, 0)
     assert.equal(s.api.walkable(-1, 3), false)

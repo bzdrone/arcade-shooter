@@ -6,14 +6,17 @@ module.exports = function levelFixture() {
     const asset = Object.values(jres).find(entry => entry.mimeType === 'application/mkcd-tilemap')
     const bytes = Buffer.from(Buffer.from(asset.data, 'base64').toString(), 'hex')
     const size = bytes[0], width = bytes.readUInt16LE(1), height = bytes.readUInt16LE(3)
+    const indices = bytes.subarray(5, 5 + width * height)
     const wallBytes = bytes.subarray(5 + width * height)
     const walls = Array.from({ length: width * height }, (_, i) => !!((wallBytes[i >> 1] >> (i % 2 * 4)) & 15))
-    return { size, width, height, walls,
+    return { size, width, height, walls, indices, tileset: asset.tileset,
         map: { data: { width, height }, scale: Math.log2(size) },
         tiles: {
             getTileLocation: (column, row) => ({ column, row }),
             tileAtLocationIsWall: ({ column, row }) => walls[row * width + column],
             placeOnTile: (sprite, { column, row }) => sprite.setPosition((column + 0.5) * size, (row + 0.5) * size),
+            getTilesByType: tile => Array.from(indices).flatMap((index, i) => asset.tileset[index] === tile
+                ? [{ column: i % width, row: Math.floor(i / width) }] : []),
             setCurrentTilemap() {}
         }
     }

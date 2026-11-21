@@ -1,62 +1,54 @@
 # Development plan
 
-This file tracks agreed next steps and temporary development status. README.md describes the project and its usage; VALIDATION.md holds the repeatable verification checklist.
+Temporary status and agreed next steps live here. Durable usage is in README.md, repeatable checks in VALIDATION.md, and accumulated toolchain/API knowledge in PXT-ARCADE.md (linked from AGENTS.md).
 
 ## Agreed direction
 
-- Teach gameplay concepts that transfer across FPS games, rather than a specific engine's modding API.
-- Use MakeCode Arcade for a small top-down shooter example.
-- Keep the implementation primarily TypeScript, with a deliberately small Blocks-friendly customization surface.
-- Use this repository to develop the game and learning experience, not as the learner's starting interface.
-- Deliver the editable game as a MakeCode Arcade project PNG containing its required source files.
-- Keep learning-activity drafts here during development. Decide how learners receive the instructions; Markdown lessons are not automatically packaged into the PNG.
+- A TypeScript-first MakeCode Arcade top-down shooter teaching transferable gameplay concepts, not a universal FPS modding API.
+- Small Blocks-friendly configuration surface; implementation stays in separate TypeScript files.
+- The repository is the authoring environment. Learners receive an importable **embedded-source project PNG**, not source assembly instructions or a screenshot. Lesson Markdown is not automatically embedded.
+- User-approved gameplay: even 2v2 teams, blue human + one friendly bot versus two red bots; all called soldiers. Slower bots, ranged damage instead of contact damage, distinct team spawn tiles, five-second respawns including the human, first team to ten eliminations.
+- Commit only with explicit user approval. The user approved committing this completed 2v2 milestone. No push authorized; exported PNG/evidence remain ignored local outputs. Previous milestone: `cba21c8` (editable yard/pathing).
 
-## Starting scope
+## Implementation milestone: complete, ready for user playtest
 
-One playfield, one weapon, one enemy type, movement, directional shooting, health, scoring, and restartable win/lose conditions.
+- Four fixed soldier slots own team, health, live sprite, weapon cooldown, respawn deadline, and target distance field. Death clears the live sprite before destruction; a respawn reuses that slot rather than growing a swarm.
+- Both teams share health/weapon rules. Defaults: three health; damage 1, fire interval 750 ms, projectile speed 80 px/s. All three bots use identical target selection, movement and firing logic at 10 px/s; human movement is 70 px/s.
+- Bots independently select reachable opponents by shortest tile route, follow cardinal waypoints, and shoot when cardinally aligned and unobstructed. Cover blocks soldiers and shots. Each target owns an independent reverse BFS field, refreshed at most every 250 ms and shared by its pursuers.
+- Bullet-only damage, friendly fire off, friendly projectiles pass through teammates, one consumed shot damages at most one opposing soldier. Stale collision callbacks cannot duplicate damage/points.
+- Blue/red spawn tile assets are editable in the tilemap. Baseline: blue column 1 / rows 2 and 4; red column 8 / rows 2 and 4. Startup requires two walkable points per team and connected routes. Respawns wait at least five seconds, then choose an unoccupied own-team point or keep waiting.
+- HUD shows team scores, human health/respawn status, and small soldier health bars. Human helmet stripe identifies the controlled soldier. First team to ten wins; explicit team-result messages and actual button restart are implemented.
+- Final score is painted before game-over captures the background (50 ms yield after marking match finished). Screenshots confirm final score ten, not a stale nine.
+- `main.ts` / `main.blocks` configure weapon `(1, 750, 80)` and soldiers `(3, 10, 5000)`. New `setSoldiers` function keeps legacy `shooter_set_enemies` block ID; visible labels/code use soldier terminology.
+- README, validation checklist, and weapon lesson now describe shared team rules/settings. Technical discoveries are persisted in PXT-ARCADE.md. No new dependencies, installs, or upstream patches.
 
-The first learning activity changes weapon damage, fire interval, and projectile speed using the predict → change → test → explain loop.
+## Verification completed
 
-## First steps
-
-1. **Compile in MakeCode Arcade.** Load main.ts and shooter.ts with the Arcade target and resolve any PXT compatibility issues.
-2. **Play the smallest example.** Work through the gameplay checks in VALIDATION.md. Refine controls, aiming, pacing, and feedback based on play rather than adding features.
-3. **Verify the Blocks surface.** Confirm the Shooter category appears and main.ts survives a TypeScript/Blocks round trip without grey JavaScript blocks. Keep shooter.ts separate.
-4. **Try the first lesson.** Play the baseline and weapon variants. Check that the differences are observable and the explanations match the behavior.
-5. **Validate the delivery artifact.** Export a project PNG from Arcade, import it into a fresh editor project, and repeat the gameplay and Blocks checks using only that file. Confirm the learner does not need this repository.
-6. **Review before expanding.** Record the results and open questions, including how learning instructions accompany or appear within the game, then agree on the next refinement. Additional mechanics and engine-specific lessons are not yet committed scope.
-
-## Implementation progress
-
-- Hardened collision handling: shots switch to a private spent-projectile kind before destruction, and enemies are removed from health tracking before destruction. Repeated/stale overlap callbacks cannot reuse a shot or double-count an enemy.
-- Added dependency-free Node host-side regression tests covering the existing baseline and collision bookkeeping. No new gameplay mechanics or dependencies were added.
-- With user approval, cloned microsoft/pxt-arcade to the sibling `~/Source/pxt-arcade` directory and installed its npm dependencies (no global CLI installation).
-- Added main.blocks to the manifest after the real editor exposed that the original project was TypeScript-only (no Blocks tab and switch-to-Blocks was a no-op). The companion contains the baseline settings; shooter.ts remains separate.
-- Added repeatable real-editor smoke checks using the toolchain's existing Puppeteer dependency, a loopback-only server, disposable profile, and memory workspace. Results/screenshots are ignored under local/editor-smoke/.
-- Reordered the next milestone at the user's request: export and validate the project PNG first so manual playtesting does not require assembling sources.
-- Added optional PNG export/import to editor-smoke.cjs and a separate hosted-editor import check. No gameplay or default settings changed.
-- Added the requested training-yard level and separate pathing.ts module: solid perimeter, two staggered cover barriers, editable tilemap/wall data, shared reverse BFS refreshed every 250 ms, cardinal waypoint steering, and safe reachable floor spawns. Cover blocks actors and destroys shots. No dependencies added.
-- Used standard 16-pixel tiles in a 10×7 map (160×112, fits one screen). An initial 8-pixel layout ran, but opening Arcade's tile editor hit an empty-gallery palette error; the standard-size map passes the real editor-opening checks locally and on hosted stable Arcade. No upstream patches applied.
-- Next: user playtest of the new level, especially routing feel, cover usefulness and pacing; remaining full gameplay checks (health/scoring, win/lose, restart, physical controls and lesson variants). Local CLI setup and limitations are recorded in VALIDATION.md.
-
-## Validation status
-
-- Manifest JSON, referenced source files, and documentation links have been checked.
-- Host-side regression suites: 23 tests passed using Node.js 24.22.3 (`node --test tests/gameplay.test.cjs tests/pathing.test.cjs`). They include route detours in both directions, no corner clipping for an 8×8 footprint, moving targets, unreachable/blocked goals and reopened passages, connected floor, safe spawns, blocked-start relocation and an all-wall level. These execute transformed source with mocked Arcade APIs, not the target runtime.
-- Arcade project compilation passed with target 4.2.1 / PXT 13.2.13 on Node.js 24.22.3, using target checkout `0642e6159d3fdb652fb1465a0aff73c5b8188578`. `pxt install` and `pxt build` exited successfully and generated `built/debug/binary.js`. This is simulator-target code generation, not a hardware build or playtest.
-- Toolchain caveats: the target `buildtarget --skipCore` command exited successfully but logged upstream browser-events typing errors and tutorial-cache missing-dependency errors. npm reported 24 vulnerabilities (4 low, 5 moderate, 15 high); no audit fixes or upstream source patches were applied.
-- Real-editor smoke checks passed using Chrome 157: simulator startup, right/up movement, retained aim, held/released fire, enemy spawning, and right-boundary containment using synthetic simulator controller input. This is not full manual playtesting. The local editor currently uses the hosted Arcade simulator iframe, not a wholly offline simulator build.
-- Blocks smoke checks passed: Shooter category and all three custom blocks plus the built-in tilemap setup appear; no grey JavaScript blocks; a non-default TypeScript argument decompiles to Blocks and a subsequent Blocks edit appears in regenerated main.ts.
-- `node tests/editor-smoke.cjs --arena --png` passed for the training yard: real simulator cover/player collision, projectile destruction at cover, bots making observable detours around each barrier, and opening the tilemap editor with wall controls. The controlled navigation checks reposition existing actors; they are not a full manual playtest.
-- Project PNG exported through the local Arcade editor's project-PNG path and decoded to verify all six baseline source/asset files and their manifest entries, including pathing.ts and tilemap resources. A fresh browser context imported only that PNG, started the game, round-tripped a Blocks damage change, and confirmed runtime damage became 3 after stop/start compilation. Fast restart alone can reuse old code.
-- `node tests/png-hosted.cjs --tilemap` passed for the exact new PNG in hosted stable Arcade 4.1.28 / PXT 13.1.25: simulator startup, Shooter blocks without grey JavaScript, and opening the imported level in the tilemap editor with wall controls. Full gameplay, physical controls and lesson validation remain outstanding.
+- **28 host tests pass** on Node 24.22.3: 17 rule/team tests + 11 navigation/visibility tests. Includes the actual entry point, team counts, all bot fire, friendly-fire/contact rules, stale callbacks, human/friendly/red respawns, occupied points, invalid maps, both ten-point outcomes, independent/replaced target fields, projectile-width visibility and cover routes/footprints. Host tests use mocked APIs, not Arcade physics.
+- **Arcade CLI build passes** with Arcade 4.2.1 / PXT 13.2.13, target checkout `0642e6159d3fdb652fb1465a0aff73c5b8188578`. Simulator code generation, not a hardware build. PXT's explicit-constructor restriction was resolved.
+- **`node tests/editor-smoke.cjs --arena --png` passes**: real-simulator 2v2 startup, human movement/retained aim/held and released fire, right boundary, cover collision/shot destruction, 10 px/s detours around both barriers, all three bots firing, harmless contact, friendly bullets passing through an ally, real eliminations and team points, five-second red/human respawns, occupied-point retry, and rebound human controls.
+- Both real-simulator match-end paths pass: seed a team score at nine and target health at one, fire a real bullet for the tenth point, inspect winning-team screenshots, and use the **game-over dialog button** to restart. Scores reset and four healthy soldiers return. These are controlled outcome tests, not full natural matches.
+- Actual TypeScript → Blocks → TypeScript changes pass, with three custom blocks, soldier labels/settings, tilemap setup, no grey JavaScript blocks, and implementation remaining separate. Tilemap editor opens with wall controls.
+- Exact PNG export decodes and matches every manifest-listed baseline source/asset file. A fresh local context imports only that PNG, starts 2v2, round-trips a damage change through Blocks, and verifies runtime damage 3 after stop/start compilation.
+- **`node tests/png-hosted.cjs --tilemap` passes** for the same bytes in fresh hosted Arcade **4.1.28 / PXT 13.1.25**: baseline settings, two soldiers per team with shared health, custom Blocks without grey JavaScript, and imported tilemap editor with wall controls.
+- Browser checks use synthetic simulator-board input and controlled actor placements, not physical keyboard play. Local editor still loads a hosted simulator iframe and requires internet.
 
 ## Current playtest artifact
 
-- File: `local/exports/arcade-shooter.png` (33,041 bytes; ignored local output, not committed or published). This replaces the earlier empty-arena playtest build.
-- SHA-256: `7735afa8f25a64d1df8f9c03908c5c08f707aeaaa48371986286a225b8143425`.
-- Exported baseline settings: weapon `(1, 250, 120)`, enemies `(3, 20, 1500)`.
-- Evidence: `local/exports/validation.json`, `local/editor-smoke/hosted-result.json`, and screenshots under `local/editor-smoke/`.
-- Import instructions: README.md, "Test an exported project PNG". Learners need only the PNG and hosted editor, not these authoring files. The PNG does not include the lesson drafts.
+- File: **`local/exports/arcade-shooter.png`**, **37,778 bytes**, ignored local output. This replaces the previous solo/enemy yard PNG with the 2v2 soldier match.
+- SHA-256: **`4292f96a126c99eabcd9d493fb877eac780454e7d112813f9667fe243056b21b`**.
+- Evidence: `local/exports/validation.json`, `local/editor-smoke/result.json`, `local/editor-smoke/hosted-result.json`; screenshots including `blue-win.png`, `red-win.png`, `blocks.png`, `tilemap-editor.png`, `hosted-png.png`, `hosted-tilemap.png`. Run logs: `local/team-smoke.log`, `local/team-hosted.log`.
+- Import the original PNG into https://arcade.makecode.com/ via drag/drop or Import → Import File. It contains source/assets, not the lesson Markdown. No repository/toolchain required for the learner.
+- Re-exporting can change PNG bytes: validate and record the exact new checksum rather than reusing this evidence for a different file.
 
-Update this status with evidence as the steps are completed; static checks are not a substitute for target compilation or playtesting.
+## Remaining user-facing review
+
+1. User playtest the new PNG for natural-match pacing, team/soldier readability, aiming, bot behavior, cover, and respawn feel. Physical keyboard focus/input and full unmodified matches remain manual checks; automation is not a substitute.
+2. Try the updated weapon lesson: shared changes affect both teams. Confirm predict → change → test → explain differences are clear; decide how instructions accompany the learner artifact.
+3. Tune only from feedback rather than expanding scope automatically. Further commits and any push require explicit approval.
+
+## Toolchain caveats
+
+- Initial approved sibling target setup exited successfully but logged upstream browser-events typing/tutorial-cache dependency diagnostics. npm reported 24 vulnerabilities (4 low, 5 moderate, 15 high); no automatic audit fixes applied.
+- Reference siblings `pxt` v13.2.13 and `pxt-common-packages` v14.2.1 are not npm-linked replacements. Compilation uses installed packages under `pxt-arcade/node_modules/`.
+- Public `pxt-arcade-sim` source is unavailable; do not retry cloning. See PXT-ARCADE.md for source locations and already-solved setup/editor pitfalls.
