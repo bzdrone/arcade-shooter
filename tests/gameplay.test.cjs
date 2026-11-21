@@ -8,13 +8,11 @@ const { stripTypeScriptTypes } = require('node:module')
 const { test } = require('node:test')
 const root = path.resolve(__dirname, '..')
 const shooter = fs.readFileSync(path.join(root, 'shooter.ts'), 'utf8').replace(/\n}\s*$/, `
-    export function inspect() { return { players, shots, player, finished,
+    export function inspect() { return { players, shots, teams, player, finished, blueScore: teams[0].score, redScore: teams[1].score,
         blueShotKind, redShotKind, spentShotKind, soldierKind, weaponDamage, fireInterval, projectileSpeed } }
     export function registerShot(sprite, attacker) { shots.push(new Shot(sprite, attacker, attacker.weapon.damage)) }
 }`)
-const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8').replace(/\n}\s*$/, `
-    export function inspect() { return { blueScore, redScore } }
-}`)
+const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8')
 const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode, { mode: 'transform' })
 
 function createGame(modifyLevel) {
@@ -61,7 +59,7 @@ function createGame(modifyLevel) {
     // Compatibility view for baseline assertions; lifecycle state remains real engine state.
     const state = () => {
         const s = context.shooter.inspect()
-        return { ...s, ...context.deathmatch.inspect(), soldiers: s.players.map(p => new Proxy(p, {
+        return { ...s, soldiers: s.players.map(p => new Proxy(p, {
             get(p, key) { return ['sprite', 'health', 'nextShotAt', 'navigation', 'field'].includes(key)
                 ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
         })) }
@@ -257,7 +255,7 @@ test('engine alone emits persistent players without scoring or ending the match'
     assert.equal(g.state().players[2], victim)
     assert.equal(g.result, undefined)
     assert.equal(g.state().blueScore, 0)
-    assert.ok(!g.hud().some(s => /FIRST TO 10|BLUE/.test(s)))
+    assert.ok(!g.hud().some(s => /FIRST TO 10/.test(s)))
 })
 
 test('real fired shots retain damage and attacker after weapon change and attacker death', () => {
@@ -296,14 +294,51 @@ test('deathmatch selection is idempotent and endMatch blocks later damage and re
     const g = createGame(); g.mode.configure(); g.mode.configure(); g.api.startGame()
     defeat(g, 2, 0)
     assert.equal(g.state().blueScore, 1)
-    g.api.endMatch(1)
+    g.api.endMatch(g.api.teamById(1))
     assert.equal(g.result, false)
     g.overlap(g.shot(0), g.state().players[3].soldier.sprite)
     g.tick(10000)
     assert.equal(g.state().players[3].soldier.health, 3)
     assert.equal(g.state().players[2].soldier, null)
-    g.api.endMatch(0)
+    g.api.endMatch(g.api.teamById(0))
     assert.equal(g.result, false)
+})
+
+test('deployment, numeric variables, scores and queries belong to persistent players', () => {
+    const g = createGame(), deployments = []
+    g.api.onDeployed(p => { deployments.push(p); g.api.setVariable(p, 2, g.api.getVariable(p, 2) + 1) })
+    g.runMain()
+    const all = g.api.allPlayers(), human = all[0], red = all[2]
+    assert.equal(all.length, 4); all.pop(); assert.equal(g.api.allPlayers().length, 4)
+    assert.equal(deployments.length, 4)
+    assert.equal(g.api.isHuman(human), true); assert.equal(g.api.isHuman(red), false)
+    assert.equal(g.api.getTeam(red), g.api.teamById(1))
+    assert.equal(g.api.getVariable(red, 0), 0)
+    g.api.setScore(human, 2); assert.equal(g.api.getScore(human), 2)
+    assert.equal(g.api.getTargetScore(), 10)
+    g.api.dealDamage(red, 3, human)
+    assert.equal(g.api.isAlive(red), false)
+    assert.equal(g.api.getEliminations(human), 1); assert.equal(g.api.getDeaths(red), 1)
+    g.tick(5000)
+    assert.equal(deployments.length, 5); assert.equal(deployments.at(-1), red)
+    assert.equal(g.api.getVariable(red, 2), 2)
+    assert.equal(g.api.getScore(human), 2)
+    g.api.endMatch(human); assert.equal(g.result, true)
+})
+
+test('self-inflicted death has identical event players, no kill or deathmatch point', () => {
+    const g = createGame(), events = []
+    g.api.onElimination((a, v) => events.push([a, v])); g.runMain()
+    const human = g.api.allPlayers()[0]
+    g.api.dealDamage(human, 3)
+    g.api.dealDamage(human, 3)
+    assert.equal(events.length, 1)
+    assert.equal(events[0][0], human); assert.equal(events[0][1], human)
+    assert.equal(g.api.getEliminations(human), 0); assert.equal(g.api.getDeaths(human), 1)
+    assert.equal(g.state().blueScore, 0); assert.equal(g.state().redScore, 0)
+    g.tick(5000)
+    human.soldier.sprite.destroy(); g.flush()
+    assert.equal(events.length, 1); assert.equal(g.api.getDeaths(human), 1)
 })
 
 test('invalid or disconnected team spawn tiles are reported', () => {

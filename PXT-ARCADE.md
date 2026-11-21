@@ -64,13 +64,16 @@ Match source tags to installed dependencies when reasoning about behavior. Refer
 - Keep `main.ts` limited to editable asset selection, configuration, and startup. Put mechanics in separate TypeScript files. The implementation does not need to decompile to Blocks.
 - Settings are applied before startup; the current setters ignore later calls. Tests must restart/recompile rather than assume runtime configuration changed.
 - Health/damage are integers, velocity is pixels/second, intervals are milliseconds. Clamp/round settings deliberately.
-- **Union types, `instanceof`, `typeof`, `await` (read from PXT 13.2.13 sources, not yet compile-tested; see the scratch test in PLAN.md):**
+- **Union types, `instanceof`, `typeof`, `await`:**
   - `pxtcompiler/emitter/emitter.ts` `checkType` enforces no type-system restrictions, so union-typed parameters such as `Team | Player` should compile.
   - `instanceof` is supported against **classes only**; other right-hand sides raise error 9275 ("unsupported instanceof expression"). Use classes, not interfaces, for types a function must tell apart.
   - `typeof` compiles to a runtime `pxt::typeOf` call; it distinguishes number/string/object but cannot tell two classes apart.
   - Multiple overload declarations for one function appear unsupported (only a TODO exists for an error message). Use one implementation with a union parameter instead.
   - `await` is **not** supported: its emitter case is inside a commented-out block, so it reaches `unhandled` (error 9202). Blocking calls such as `pause` already wait implicitly, so Arcade code simply omits `async`/`await`. Whether a bare `async` modifier is accepted was not determined.
-  - Blocks: `pxtblocks/loader.ts` `getBlocklyCheckForType` splits a parameter type on `|`, so a `Team | Player` input accepts blocks of either type and rejects others; any `any` part makes the input accept everything.
+  - Confirmed with `node tests/editor-smoke.cjs --scratch` on Arcade 4.2.1 / PXT 13.2.13: a temporary project compiles and runs class-union `instanceof` dispatch (`Team` → T, `Player` → P). Blocks accepts both class reporters, rejects numbers, and survives TS → Blocks → edited TS with no grey JavaScript. No default shadow is supplied: the input is an empty value socket when disconnected, not a number/text shadow.
+  - The same real-simulator probe confirms a `pause`-based wait suspends only its calling parallel handler while another handler completes; no `async`/`await` is needed. `typeof` and rejection of `await` remain source-reading findings, not additional compile tests.
+  - The probe creates/removes its project in an OS temporary directory and copies existing bundled dependencies; it installs nothing. Evidence stays ignored. Set `preferredEditor: tsprj` when importing a probe with an empty Blocks companion, or editor import may prefer empty Blocks over main.ts.
+  - Blocks: `pxtblocks/loader.ts` `getBlocklyCheckForType` splits a parameter type on `|`; any `any` part makes the input accept everything.
 - Regular TypeScript namespace-private state is not automatically exposed to host tests. The current rule suite injects an inspection hook into the **transformed test copy only**; do not add debug exports to the shipped game just to satisfy host tests.
 
 ## 4. Blocks: file presence and real round trips matter

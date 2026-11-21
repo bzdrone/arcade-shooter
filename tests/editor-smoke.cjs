@@ -79,6 +79,10 @@ async function main() {
             }), { action, args, origin })
             assert.equal(response.success, true, `${action}: ${JSON.stringify(response.error)}`)
         }
+        if (process.argv.includes('--scratch')) {
+            await require('./scratch-compat.cjs')({ editor, page, command, sleep, artifacts, target })
+            return
+        }
         const text = {}
         const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
         for (const name of ['pxt.json', ...manifest.files]) text[name] = fs.readFileSync(path.join(root, name), 'utf8')

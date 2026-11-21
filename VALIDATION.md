@@ -20,6 +20,10 @@ The additional engine/mode checks cover persistent player identity and fresh sol
 
 The mocks do **not** validate PXT compatibility, physics, sprite lifetime/off-screen cleanup, rendering, input, automatic zero-life game over, restart, Blocks, or PNG packaging. Passing them is not simulator verification.
 
+## Compatibility probe
+
+Run `node tests/editor-smoke.cjs --scratch` to build a temporary Arcade project outside this repository using copies of existing bundled dependencies. It tests class-union dispatch, Blocks connection acceptance/rejection and an edited TS ↔ Blocks round-trip, and concurrent handlers around a `pause`-based wait. No probe APIs are packaged in the game. Results/screenshots go to ignored editor evidence. Normal rule tests also cover initial/respawn deployment, numeric variable persistence, team/player score isolation, roster-copy queries, statistics and self-inflicted/external-removal conventions.
+
 ## Local Arcade CLI compilation
 
 Keep the toolchain separate from the game, as a sibling checkout under `~/Source`. Initial setup (already performed locally with approval):

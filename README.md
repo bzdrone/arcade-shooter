@@ -76,7 +76,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
-- deathmatch.ts: first-team-to-ten rules, team scores, and mode-owned HUD text; selected by `deathmatch.configure()` before startup.
+- deathmatch.ts: first-team-to-ten rules over engine-owned team scores; selected by `deathmatch.configure()` before startup.
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
 - tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
@@ -93,7 +93,11 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 
 Baseline settings and mode selection apply before startGame(); later settings calls are ignored. The Shooter category retains its three settings/start blocks; the Deathmatch category adds **use deathmatch rules**. Without mode rules, the engine still runs combat and respawns but does not score eliminations or end a match automatically.
 
-For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` makes a weapon value, and `shooter.giveWeapon(player, weapon)` changes that player's subsequent shots and survives respawn. Already-fired shots retain their original damage and attacker; replacing a weapon does not reset the current cooldown. `shooter.onElimination(function (attacker, victim) { ... })` registers rules before startup and reports persistent players, not disposable soldier bodies. External sprite removal is not an elimination. Modes supply HUD text with `shooter.setStatus(heading, ruleText)` and finish with `shooter.endMatch(winningTeam)` (0 = blue, 1 = red). Player/action/event Blocks and other modes are planned, not implemented yet.
+For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` makes a weapon value, and `shooter.giveWeapon(player, weapon)` changes that player's subsequent shots and survives respawn. Already-fired shots retain their original damage and attacker; replacing a weapon does not reset the current cooldown. `shooter.onElimination(function (attacker, victim) { ... })` registers rules before startup and reports persistent players, not disposable soldier bodies. External sprite removal is not an elimination and does not change elimination/death statistics. `shooter.dealDamage(victim, damage, attacker?)` supports scripted damage; omitted attacker means self-inflicted damage (same attacker/victim in the event, no elimination credit).
+
+Match state belongs to the engine: `getScore`/`setScore` accept a `Team | Player`; `getTargetScore`/`setTargetScore` control the target. Deathmatch increments only team scores and supplies the ten-point rule. `shooter.endMatch(teamOrPlayer)` accepts either value; a player winner wins for their team. `teamById(0/1)` and `getTeam(player)` return team values. `allPlayers()` returns a copy of the roster; `isHuman`, `isAlive`, `getEliminations`, and `getDeaths` provide player queries. `onDeployed` fires once per successful spawn, including initial deployment after map validation. Register events before startup.
+
+`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Player/action/event Blocks and other modes are planned, not implemented yet.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
 

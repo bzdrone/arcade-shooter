@@ -1,4 +1,4 @@
-// Two teams, two players each. Modes own scoring and victory rules.
+// Two teams, two players each. The engine owns match state; modes own rules.
 //% color=#C75050 weight=100 block="Shooter"
 namespace shooter {
     let weaponDamage = 1
@@ -12,8 +12,8 @@ namespace shooter {
     let player: Sprite = null
     let facingX = 1
     let facingY = 0
-    let heading = ""
-    let statusText = ""
+    let targetScore = 0
+    let deployedHandlers: ((player: Player) => void)[] = []
     let eliminationHandlers: ((attacker: Player, victim: Player) => void)[] = []
     const soldierKind = SpriteKind.create()
     const blueShotKind = SpriteKind.create()
@@ -37,9 +37,19 @@ namespace shooter {
         constructor(public sprite: Sprite) {}
     }
 
+    export class Team {
+        score = 0
+        constructor(public id: number) {}
+    }
+    let teams: Team[] = [new Team(0), new Team(1)]
+
     export class Player {
         soldier: Soldier = null
         respawnAt = 0
+        score = 0
+        eliminations = 0
+        deaths = 0
+        variables: number[] = []
         constructor(public team: number, public human: boolean, public spawnIndex: number, public weapon: Weapon) {}
     }
 
@@ -61,18 +71,48 @@ namespace shooter {
         if (!started && handler) eliminationHandlers.push(handler)
     }
 
-    /** Modes own the scoreboard and rule text; the engine owns health/respawn text. */
-    export function setStatus(headingText: string, ruleText: string): void {
-        heading = headingText
-        statusText = ruleText
+    export function onDeployed(handler: (player: Player) => void): void {
+        if (!started && handler) deployedHandlers.push(handler)
     }
 
-    export function endMatch(winningTeam: number): void {
+    export function allPlayers(): Player[] { return players.slice() }
+    export function teamById(id: number): Team { return id == 0 || id == 1 ? teams[id] : null }
+    export function getTeam(player: Player): Team { return teams[player.team] }
+    export function isHuman(player: Player): boolean { return player.human }
+    export function isAlive(player: Player): boolean { return player.soldier != null }
+    export function getEliminations(player: Player): number { return player.eliminations }
+    export function getDeaths(player: Player): number { return player.deaths }
+
+    export function getScore(target: Team | Player): number { return target.score }
+    export function setScore(target: Team | Player, score: number): void {
+        if (!finished) target.score = Math.max(0, Math.round(score))
+    }
+    export function setTargetScore(score: number): void {
+        if (!finished) targetScore = Math.max(0, Math.round(score))
+    }
+    export function getTargetScore(): number { return targetScore }
+
+    /** Numeric slots start at zero and survive every soldier body. */
+    export function getVariable(player: Player, index: number): number {
+        index = Math.round(index)
+        if (index < 0 || index >= player.variables.length) return 0
+        return player.variables[index]
+    }
+    export function setVariable(player: Player, index: number, value: number): void {
+        index = Math.round(index)
+        if (index < 0 || index > 31 || finished) return
+        while (player.variables.length <= index) player.variables.push(0)
+        player.variables[index] = value
+    }
+
+    /** A player winner wins for their team in this 2v2 engine. */
+    export function endMatch(winner: Team | Player): void {
         if (!started || finished) return
         finished = true
         // Paint the final mode status before game-over captures the background.
         pause(50)
-        game.over(winningTeam == 0)
+        const winningTeam = winner instanceof Team ? winner : getTeam(winner)
+        game.over(winningTeam.id == 0)
     }
 
     /** Shared starting weapon for every player. Configure before starting. */
@@ -115,7 +155,11 @@ namespace shooter {
         sprite.destroy()
     }
 
-    function spawn(owner: Player, now: number): void {
+    function deployed(owner: Player): void {
+        for (let i = 0; i < deployedHandlers.length; i++) deployedHandlers[i](owner)
+    }
+
+    function spawn(owner: Player, now: number, notify: boolean = true): void {
         const entries = owner.team == 0 ? blueSpawns : redSpawns
         for (let offset = 0; offset < entries.length; offset++) {
             const index = (owner.spawnIndex + offset) % entries.length
@@ -158,6 +202,7 @@ namespace shooter {
             } else {
                 soldier.navigation = new pathing.Bot(sprite, botSpeed)
             }
+            if (notify) deployed(owner)
             return
         }
         // Occupied/blocked points delay this player; never create another slot.
@@ -192,10 +237,19 @@ namespace shooter {
         shot.setKind(spentShotKind)
         shots.removeElement(fired)
         shot.destroy()
-        victim.soldier.health -= fired.damage
+        dealDamage(victim, fired.damage, fired.attacker)
+    }
+
+    /** Generic scripted damage. Omitting the attacker is self-inflicted damage. */
+    export function dealDamage(victim: Player, damage: number, attacker: Player = null): void {
+        if (finished || !victim || !victim.soldier || damage <= 0) return
+        victim.soldier.health -= Math.max(0, Math.round(damage))
         if (victim.soldier.health > 0) return
+        if (!attacker) attacker = victim
+        victim.deaths++
+        if (attacker != victim) attacker.eliminations++
         retire(victim) // Untrack before destruction or event callbacks run.
-        for (let i = 0; i < eliminationHandlers.length; i++) eliminationHandlers[i](fired.attacker, victim)
+        for (let i = 0; i < eliminationHandlers.length; i++) eliminationHandlers[i](attacker, victim)
     }
 
     function targetFor(owner: Player, now: number): Soldier {
@@ -273,7 +327,7 @@ namespace shooter {
         sprites.onOverlap(blueShotKind, soldierKind, function (shot, sprite) { hit(shot, sprite, 0, blueShotKind) })
         sprites.onOverlap(redShotKind, soldierKind, function (shot, sprite) { hit(shot, sprite, 1, redShotKind) })
         const now = game.runtime()
-        for (let i = 0; i < players.length; i++) spawn(players[i], now)
+        for (let i = 0; i < players.length; i++) spawn(players[i], now, false)
         for (let i = 0; i < blueSpawns.length + redSpawns.length; i++) {
             const location = i < blueSpawns.length ? blueSpawns[i] : redSpawns[i - blueSpawns.length]
             if (!players[0].soldier.field.reachable(location.column, location.row)) {
@@ -283,12 +337,14 @@ namespace shooter {
                 return
             }
         }
+        for (let i = 0; i < players.length; i++) deployed(players[i])
         scene.createRenderable(100, function (target) {
             target.fillRect(0, 0, scene.screenWidth(), 9, 15)
-            target.print(heading, 2, 1, 1, image.font5)
+            target.print("BLUE " + teams[0].score + "  RED " + teams[1].score, 2, 1, 1, image.font5)
             target.fillRect(0, 112, scene.screenWidth(), 8, 15)
             const human = players[0]
-            let status = "YOU HP " + (human.soldier ? human.soldier.health : 0) + "  " + statusText
+            let status = "YOU HP " + (human.soldier ? human.soldier.health : 0) + (targetScore > 0 ? "  FIRST TO " + targetScore : "")
+            if (human.score > 0) status = "YOU HP " + (human.soldier ? human.soldier.health : 0) + " SCORE " + human.score + "/" + targetScore
             if (!human.soldier) {
                 const seconds = Math.max(0, Math.ceil((human.respawnAt - game.runtime()) / 1000))
                 status = seconds > 0 ? "RESPAWN IN " + seconds + "s" : "WAITING FOR BLUE SPAWN"

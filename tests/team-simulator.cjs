@@ -9,6 +9,7 @@ async function install(sim) {
     }, { timeout: 30000 })
     await sim.evaluate(() => {
         const get = name => {
+            if (name === 'blueScore' || name === 'redScore') return get('teams').data[name === 'blueScore' ? 0 : 1].fields.score
             const g = pxsim.runtime.globals
             return g[Object.keys(g).find(k => k.startsWith(name + '___') &&
                 (name !== 'players' || g[k]?.data?.some(p => p.fields && 'soldier' in p.fields)))]
@@ -27,6 +28,10 @@ async function install(sim) {
         window.team = {
             get, slots, point,
             set(name, value) {
+                if (name === 'blueScore' || name === 'redScore') {
+                    get('teams').data[name === 'blueScore' ? 0 : 1].fields.score = value
+                    return
+                }
                 const g = pxsim.runtime.globals
                 g[Object.keys(g).find(k => k.startsWith(name + '___'))] = value
             },
@@ -190,7 +195,7 @@ async function checkArena({ sim, command, button, sleep, snapshot, screenshot })
             const g = pxsim.runtime?.globals || {}
             const get = name => g[Object.keys(g).find(k => k.startsWith(name + '___') &&
                 (name !== 'players' || g[k]?.data?.some(p => p.fields && 'soldier' in p.fields)))]
-            return !get('finished') && get('blueScore') === 0 && get('redScore') === 0
+            return !get('finished') && get('teams')?.data?.every(t => t.fields.score === 0)
                 && get('players')?.data?.length === 4 && get('players').data.every(p => p.fields.soldier?.fields.sprite)
         }, { timeout: 15000 })
         await install(sim)

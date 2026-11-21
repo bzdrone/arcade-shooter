@@ -39,7 +39,12 @@ The user decided to put the Portal-shaped layer **last**. Build the shared gener
 
 The user authorized autonomous implementation of A–D using best judgment, full validation and a separate commit after each slice. Report progress between slices without waiting for approval. Do not push, publish, add dependencies, or implement E. If unions fail, use separately named team/player functions rather than stopping.
 
-**A. Match state owned by the engine** (next; not started)
+**A. Match state owned by the engine** (complete; validated)
+
+- Scratch class unions, `instanceof`, Blocks type checks/round-trip, and concurrent `pause` wait pass on the existing toolchain. No fallback needed; findings recorded in PXT-ARCADE.md. Probe code is author-only; temporary project files stay outside the repository.
+- Implemented deployment events (including initial spawn after map validation), engine team/player scores and target, team/player match ending, 32 index-keyed numeric player variables, roster/team/control/alive/stat queries, and scripted/self-inflicted damage. External removal retains no-event/no-stat/no-score respawn behavior. Deathmatch uses engine scores and skips self/friendly scripted eliminations.
+- Validation: 33 host tests, Arcade CLI build, `--arena --png` local editor checks, both win/restart paths, all four Blocks, exact-source PNG fresh import, and hosted `--tilemap` pass. Inspected both win screenshots: baseline HUD/final ten-point results unchanged. No natural-match/physical-keyboard/learner evaluation claimed.
+- Slice A PNG: 41,807 bytes; SHA-256 `a552c925b897a352e12c1d8a4b24ad8ea638e1b0fdb572b4c8e2748a7aab1bb8`. Later slices replace the ignored local export/evidence. This is not a published asset.
 
 - First run a scratch test outside the tracked project, confirming the source-reading findings in PXT-ARCADE.md §3: a union parameter with `instanceof` dispatch between two classes compiles and runs; a union-typed Blocks input accepts both types and rejects unrelated types (record its appearance without a default shadow); TypeScript ↔ Blocks round-trip works; a generic wait built on `pause` blocks only the calling event handler. Record confirmed results in PXT-ARCADE.md. If unions fail, document the limitation and use separately named functions as authorized by the user.
 - Add a deployed event receiving the player on every spawn, including the initial spawn.
