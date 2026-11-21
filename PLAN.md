@@ -31,15 +31,18 @@ The first learning activity changes weapon damage, fire interval, and projectile
 - Hardened collision handling: shots switch to a private spent-projectile kind before destruction, and enemies are removed from health tracking before destruction. Repeated/stale overlap callbacks cannot reuse a shot or double-count an enemy.
 - Added dependency-free Node host-side regression tests covering the existing baseline and collision bookkeeping. No new gameplay mechanics or dependencies were added.
 - With user approval, cloned microsoft/pxt-arcade to the sibling `~/Source/pxt-arcade` directory and installed its npm dependencies (no global CLI installation).
-- Next: run the simulator and Blocks checklist, then validate the project-PNG artifact. Local CLI setup and limitations are recorded in VALIDATION.md.
+- Added main.blocks to the manifest after the real editor exposed that the original project was TypeScript-only (no Blocks tab and switch-to-Blocks was a no-op). The companion contains the baseline settings; shooter.ts remains separate.
+- Added repeatable real-editor smoke checks using the toolchain's existing Puppeteer dependency, a loopback-only server, disposable profile, and memory workspace. Results/screenshots are ignored under local/editor-smoke/.
+- Next: complete gameplay checks (health/scoring, win/lose, restart, physical controls and lesson variants), then validate the exported project PNG in a fresh project. Local CLI setup and limitations are recorded in VALIDATION.md.
 
 ## Validation status
 
 - Manifest JSON, referenced source files, and documentation links have been checked.
-- Host-side regression suite: 10 tests passed using Node.js 24.22.3 (`node --test tests/gameplay.test.cjs`). These execute transformed source with mocked Arcade APIs, not the target runtime.
+- Host-side regression suite: 11 tests passed using Node.js 24.22.3 (`node --test tests/gameplay.test.cjs`). These execute transformed source with mocked Arcade APIs, not the target runtime.
 - Arcade project compilation passed with target 4.2.1 / PXT 13.2.13 on Node.js 24.22.3, using target checkout `0642e6159d3fdb652fb1465a0aff73c5b8188578`. `pxt install` and `pxt build` exited successfully and generated `built/debug/binary.js`. This is simulator-target code generation, not a hardware build or playtest.
 - Toolchain caveats: the target `buildtarget --skipCore` command exited successfully but logged upstream browser-events typing errors and tutorial-cache missing-dependency errors. npm reported 24 vulnerabilities (4 low, 5 moderate, 15 high); no audit fixes or upstream source patches were applied.
-- Simulator gameplay and Blocks compatibility have not been verified.
+- Real-editor smoke checks passed using Chrome 157: simulator startup, right/up movement, retained aim, held/released fire, enemy spawning, and right-boundary containment using synthetic simulator controller input. This is not full manual playtesting. The local editor currently uses the hosted Arcade simulator iframe, not a wholly offline simulator build.
+- Blocks smoke checks passed: Shooter category and all three custom blocks appear; no grey JavaScript blocks; a non-default TypeScript argument decompiles to Blocks and a subsequent Blocks edit appears in regenerated main.ts. Final file preservation and artifact-based round trips remain unverified.
 - A project PNG has not been exported or tested.
 
 Update this status with evidence as the steps are completed; static checks are not a substitute for target compilation or playtesting.

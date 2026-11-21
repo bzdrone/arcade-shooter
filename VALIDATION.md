@@ -39,6 +39,32 @@ The CLI resolves the sibling Arcade target from its installation path; no global
 
 The tested checkout and toolchain warnings are recorded in PLAN.md. Do not assume a successful target setup exit means every bundled package/tutorial built cleanly. Review npm audit findings before exposing or deploying the development server; do not run automatic breaking upgrades as part of game validation.
 
+## Upstream source and documentation
+
+Public dependency repositories are also checked out as siblings under `~/Source`, at tags matching the installed npm dependencies:
+
+- `../pxt` — microsoft/pxt, tag `v13.2.13`: compiler in `pxtcompiler/`, Blocks support in `pxtblocks/`, shared simulator infrastructure in `pxtsim/`, and authoring/CLI documentation in `docs/`.
+- `../pxt-common-packages` — microsoft/pxt-common-packages, tag `v14.2.1`: Arcade gameplay APIs in `libs/game/` (sprites, physics, overlap handling, controllers), with API docs in `libs/game/docs/`.
+- `../pxt-arcade` — target configuration, bundled libraries, Arcade docs in `docs/`, and public target simulator code in `sim/`.
+
+The dependency checkouts are read-only references for now, not npm-linked replacements. Compilation still uses the installed packages in `pxt-arcade/node_modules/`. Keep versions aligned when investigating behavior; only link and rebuild source checkouts when deliberately testing upstream changes. The separate `pxt-arcade-sim` repository is not public and has not been cloned.
+
+## Real-editor browser smoke checks
+
+After the local target setup above, run:
+
+```sh
+node tests/editor-smoke.cjs
+```
+
+This uses Puppeteer already installed in the sibling Arcade toolchain and an installed Chrome browser. On this Windows machine Chrome is detected at its standard Program Files path; set `ARCADE_BROWSER` to another compatible Chromium executable if needed. No extra packages are added to the game.
+
+The script starts its own loopback-only editor server on ports 3242/3243, uses a disposable browser profile and in-memory workspace, and closes the browser/server on completion. It does not publish a project or change repository source. An internet connection is currently needed: this target loads the hosted simulator iframe at `https://trg-arcade.userpxt.io/---simulator`.
+
+Checks include simulator startup, right/up movement, retained aim, held/released firing, enemy spawning, and the right screen boundary. Input is synthetic controller input through the simulator board, not a physical keyboard test. It then changes weapon damage in TypeScript, decompiles to Blocks, checks all three custom block types and absence of grey blocks, edits damage in Blocks, and checks the regenerated TypeScript. This avoids a false pass from cached Blocks/TypeScript files.
+
+Screenshots and a JSON result are written to ignored `local/editor-smoke/`. Screenshots are evidence only, **not project PNG artifacts**. These smoke checks do not cover the complete gameplay checklist, automatic loss, victory, restart, physical controls, lesson variants, or PNG export/import. A successful Blocks round trip must also preserve shooter.ts as a separate project file during final artifact validation.
+
 ## Compilation and simulator
 
 - Import both TypeScript files with the Arcade target; check for compile errors.
@@ -63,7 +89,7 @@ The tested checkout and toolchain warnings are recorded in PLAN.md. Do not assum
 
 - Export using Arcade's project-PNG facility, not a screenshot or ordinary image export.
 - Import the exported PNG into a fresh editor project without access to this repository.
-- Confirm main.ts, shooter.ts, and the required project configuration survive import.
+- Confirm main.ts, main.blocks, shooter.ts, and the required project configuration survive import.
 - Repeat gameplay and Blocks checks against the imported artifact.
 - Make a settings change after import and verify its effect after restart.
 - Test the exact file intended for distribution; do not substitute a re-encoded image.

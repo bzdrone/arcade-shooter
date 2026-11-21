@@ -25,7 +25,8 @@ Use https://arcade.makecode.com/ with the Arcade target. To assemble the source 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
 2. Replace main.ts with this repository's main.ts.
 3. Add shooter.ts in the Explorer and copy in this repository's shooter.ts.
-4. Run the simulator and check the Blocks customization surface.
+4. Retain the new project's main.blocks file; it enables the Blocks editor. The repository manifest also includes main.blocks for imports/exports. Without that companion file, Arcade treats the project as TypeScript-only.
+5. Run the simulator and check the Blocks customization surface.
 
 MakeCode's GitHub import is another authoring option for a hosted repository containing the Arcade pxt.json project. It is not the learner delivery mechanism.
 
@@ -34,9 +35,11 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 ## Source layout
 
 - main.ts: learner-facing settings and startup calls inside the exported project.
+- main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: game implementation and annotated Blocks API.
 - pxt.json: Arcade project manifest.
 - tests/gameplay.test.cjs: dependency-free host-side logic checks; run with `node --test tests/gameplay.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
+- tests/editor-smoke.cjs: real-editor browser smoke checks using the sibling toolchain; see VALIDATION.md for setup and limitations.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Development plan](PLAN.md): agreed next steps and development status.

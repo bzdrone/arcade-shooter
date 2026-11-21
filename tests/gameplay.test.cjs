@@ -121,6 +121,19 @@ test('startup is idempotent and uses the default life, score and position', () =
     assert.deepEqual([g.player.x, g.player.y, g.player.stayInScreen], [80, 60, true])
 })
 
+test('the project manifest packages a Blocks companion and all required sources', () => {
+    const root = join(__dirname, '..')
+    const manifest = JSON.parse(readFileSync(join(root, 'pxt.json'), 'utf8'))
+    for (const name of ['main.ts', 'main.blocks', 'shooter.ts']) {
+        assert.ok(manifest.files.includes(name), `${name} must survive project export`)
+        assert.ok(readFileSync(join(root, name), 'utf8').length > 0)
+    }
+    const blocks = readFileSync(join(root, 'main.blocks'), 'utf8')
+    for (const id of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) {
+        assert.ok(blocks.includes(`type="${id}"`))
+    }
+})
+
 test('the actual learner entry point starts successfully', () => {
     const g = createGame()
     const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8')
