@@ -35,21 +35,46 @@ Required (no longer optional): a **deployed/respawned event**; **engine-owned te
 
 ### Revised milestones
 
-One at a time, each with full validation (Arcade build, host tests, simulator smoke, Blocks round-trip, PNG export/fresh import); the user decides which become releases.
+The user decided to put the Portal-shaped layer **last**. Build the shared generic engine support first, using plain engine names; deathmatch and gun game use the engine directly until the later adapter work. The layers above describe the eventual architecture, not the implementation order.
 
-2. **`mod` layer core + deathmatch on `mod`.** First run the scratch compile test below. Then add the engine additions that deathmatch needs (deploy event, engine-owned scores/target, `EndGameMode` with team or player, player variables), the `mod` events/actions for them, and the messages wrapper. Rewrite `deathmatch.ts` against `mod`. Must still play identically to `v0.1.0-preview.1`.
-3. **Gun game on `mod` + weapons compatibility library.** Weapon categories with range and projectile color, range-aware bots, per-player level in a player variable, level-up announcements via the messages wrapper, win on the last weapon. Watch balance: human 70 px/s vs bots 10 px/s matters more with individual progression.
-4. **Learner surface: `mod` in Blocks + lessons + porting checklist.** Event/action blocks with stable block IDs, ideally shaped like Portal's rules editor (event → conditions → actions). Short lesson path: read deathmatch → change one rule → write gun game with events, functions and player variables → port to Portal using the checklist.
-5. **Portal-side files** (later, location to decide): a Portal weapons table and any small adapter, plus a worked port of gun game. Needs a real Portal check (local hosting writes `PortalLog.txt`), which cannot be automated from this repository.
+The user authorized autonomous implementation of A–D using best judgment, full validation and a separate commit after each slice. Report progress between slices without waiting for approval. Do not push, publish, add dependencies, or implement E. If unions fail, use separately named team/player functions rather than stopping.
 
-### Verify before milestone 2: scratch compile test
+**A. Match state owned by the engine** (next; not started)
 
-Run in a scratch/ignored location, not the repository. Confirms PXT findings that so far come only from reading compiler sources (see PXT-ARCADE.md §3):
+- First run a scratch test outside the tracked project, confirming the source-reading findings in PXT-ARCADE.md §3: a union parameter with `instanceof` dispatch between two classes compiles and runs; a union-typed Blocks input accepts both types and rejects unrelated types (record its appearance without a default shadow); TypeScript ↔ Blocks round-trip works; a generic wait built on `pause` blocks only the calling event handler. Record confirmed results in PXT-ARCADE.md. If unions fail, document the limitation and use separately named functions as authorized by the user.
+- Add a deployed event receiving the player on every spawn, including the initial spawn.
+- Move team/player scores and target score into the engine and draw them in its HUD. Deathmatch stops owning counters and must still play identically to `v0.1.0-preview.1`.
+- Change `endMatch` to one function accepting a winning team or player through a union parameter; preserve team-win messages and button restart.
+- Add a simple numeric per-player variable store that survives respawn; choose name or index keys based on PXT simplicity and document the choice.
+- Add queries for all players, team, human/bot control, alive state, and elimination/death counts.
+- Test the elimination conventions: self-inflicted elimination reports the same attacker and victim; external sprite removal schedules respawn without a point or elimination event.
 
-1. Union-typed parameter with `instanceof` dispatch between two classes compiles and runs.
-2. A union-typed Blocks input accepts blocks of both types and rejects others; note how it looks with no default shadow block.
-3. TypeScript ↔ Blocks round-trip with a union-typed block.
-4. A `mod.Wait(seconds)` built on `pause` blocks only the calling event handler.
+**B. Messages: generic HUD notifications**
+
+- Add short notifications and large centered announcements, targeted to everyone (default), a player, or a team through one union-typed target parameter.
+- Use timed HUD queues, never `game.splash` or another gameplay-blocking UI. On the single screen, show messages for everyone, the human, or the human's team; drop bot-only/opposing-team messages.
+- Support up to three `{}` placeholders filled by strings, numbers, or players (using display names). Keep the bottom status line engine-only.
+
+**C. Weapons**
+
+- Add range and projectile color while respecting current shot lifetime and wall behavior. Keep deathmatch's default `(1, 750, 80)` weapon and effectively unchanged range.
+- Add a small named preset catalog in generic engine terms, not Portal enums or real gun names. User excluded sniper and preferred one automatic weapon. Selected catalog: pistol, SMG, shotgun, knife (very short range); omit rifle.
+- Make bots close distance until within weapon range before firing; retain alignment, cover and visibility rules.
+
+**D. Gun game and mode selection**
+
+- Implement `gungame.ts` against the engine, not `mod`: per-player level in a player variable, advance on elimination, immediately assign the next catalog weapon, announce level-ups using slice B, and end via `endMatch(player)` on the last weapon's elimination, subject to the agreed victory model.
+- User approved individual ladders with a team win. `endMatch(player)` credits the finishing player's team. Demotion is out of scope.
+- Add deathmatch / gun game / no-mode (engine-only) selection to `main.ts` and Blocks. Keep existing block IDs stable and assign stable IDs to new blocks.
+- Report balance observations, especially human 70 px/s versus bots 10 px/s; ask before tuning beyond basic playability.
+
+**E. Deferred: Portal-shaped layer and learner path**
+
+- Not part of slices A–D: the `mod` layer, rewriting modes against it, learner event/action Blocks, lessons, porting checklist work, Portal-side files, or releases. Do not start these yet.
+
+For A–D, prefer one function per action with a team/player union where applicable (separately named functions are the approved fallback); events pass players, never sprites. No learner-facing engine event/action Blocks: only configuration and mode-selection blocks. Keep the scope to engine support needed by these slices; no extra maps or unrelated polish.
+
+**Validation after each slice:** Arcade CLI build; host tests with new behavior coverage; `node tests/editor-smoke.cjs --arena --png`; both Blocks round-trip directions without grey JavaScript; exact-source PNG export and fresh import; `node tests/png-hosted.cjs --tilemap`. Inspect screenshots for visible HUD/message changes. Slices A–C must preserve published deathmatch gameplay; report skipped checks or behavior changes plainly.
 
 ### Open design questions
 
