@@ -6,7 +6,7 @@ A development repository for a MakeCode Arcade learning project about gameplay c
 
 This repository is for authors developing the game and learning experience. Learners are not expected to clone it, use Git, or assemble its source files.
 
-The learner-facing game artifact is a **MakeCode Arcade project PNG**: an image containing embedded project data that can be imported into the Arcade editor. It is not a screenshot. Learners import the PNG to play, inspect, and modify the game.
+The learner-facing game artifact is a **MakeCode Arcade project PNG**: an image containing embedded project data that can be imported into the Arcade editor. It is not a screenshot. Learners import the PNG to play, inspect, and modify the game. Supply the short [learner introduction](INTRO.md) alongside it for import instructions, controls, and a first experiment.
 
 The implementation is primarily TypeScript, with a small Blocks-friendly customization surface. The PNG must carry the project files needed for that surface and its implementation, without relying on access to this repository.
 
@@ -84,6 +84,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
+- [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
 - [Development plan](PLAN.md): agreed next steps and development status.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.

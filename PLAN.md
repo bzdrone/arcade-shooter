@@ -8,7 +8,7 @@ Temporary status and agreed next steps live here. Durable usage is in README.md,
 - Small Blocks-friendly configuration surface; implementation stays in separate TypeScript files.
 - The repository is the authoring environment. Learners receive an importable **embedded-source project PNG**, not source assembly instructions or a screenshot. Lesson Markdown is not automatically embedded.
 - User-approved gameplay: even 2v2 teams, blue human + one friendly bot versus two red bots; all called soldiers. Slower bots, ranged damage instead of contact damage, distinct team spawn tiles, five-second respawns including the human, first team to ten eliminations.
-- Commit only with explicit user approval. The user approved committing this completed 2v2 milestone. No push authorized; exported PNG/evidence remain ignored local outputs. Previous milestone: `cba21c8` (editable yard/pathing).
+- Commit only with explicit user approval. The user approved committing this completed 2v2 milestone. No push authorized; exported PNG/evidence remain ignored local outputs. Previous milestone: `8469043` (editable yard/pathing).
 
 ## Implementation milestone: complete, ready for user playtest
 
@@ -41,11 +41,21 @@ Temporary status and agreed next steps live here. Durable usage is in README.md,
 - Import the original PNG into https://arcade.makecode.com/ via drag/drop or Import → Import File. It contains source/assets, not the lesson Markdown. No repository/toolchain required for the learner.
 - Re-exporting can change PNG bytes: validate and record the exact new checksum rather than reusing this evidence for a different file.
 
-## Remaining user-facing review
+## User review and learner handoff
 
-1. User playtest the new PNG for natural-match pacing, team/soldier readability, aiming, bot behavior, cover, and respawn feel. Physical keyboard focus/input and full unmodified matches remain manual checks; automation is not a substitute.
-2. Try the updated weapon lesson: shared changes affect both teams. Confirm predict → change → test → explain differences are clear; decide how instructions accompany the learner artifact.
-3. Tune only from feedback rather than expanding scope automatically. Further commits and any push require explicit approval.
+- User playtested the current game and reported that it played well. Keep the baseline mechanics/pacing unless concrete feedback identifies a problem; this is positive playtest feedback, not evidence that every manual checklist item was separately exercised.
+- User agreed to defer further learner-path evaluation until an actual learner is available. This milestone is a learner-test candidate, not a validated lesson.
+- Added `INTRO.md`: a short separate learner handout covering PNG import, controls, match rules, and one predict/change/test/explain experiment, with a link to the existing weapon activity. Supply these documents alongside the original PNG; they are not embedded.
+- When a learner is available, observe where they need help and what they can explain afterward, including that weapon changes affect both teams. Do not substitute author rehearsals for learner evidence.
+- Tune from feedback rather than expanding scope automatically. Further commits and any push require explicit approval.
+
+## Preview release preparation (not published)
+
+- User agreed to head toward a GitHub Release rather than build a Pages site now. Proposed version: `v0.1.0-preview.1`, marked prerelease because actual learner evaluation is pending.
+- Added release notes and a pinned candidate descriptor under `releases/`, `RELEASING.md`, and dependency-free `tools/prepare-release.cjs`. The helper stages original PNG bytes, separate learner handouts, license, SHA256SUMS and provenance under ignored `local/releases/v0.1.0-preview.1/`. It checks source against tested game commit `a422488` and PNG identity against matching local/hosted evidence; it does not rerun runtime tests or publish.
+- Introduction now references the separately attached activity by filename, avoiding a repository-relative link that would break for flat release downloads.
+- **No Git remote is configured, and no tags exist.** Confirm GitHub destination and public/private visibility with the user before repository creation or remote setup. No account/repository inferred from the local Windows username.
+- Preparation changes are not committed. Commit only with approval, then rerun preparation from that clean commit before tagging/uploading; the release tag should include the handouts/preparation files. Push, draft creation, and publication remain gated by user approval.
 
 ## Toolchain caveats
 
