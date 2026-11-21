@@ -58,7 +58,7 @@ async function main() {
                 types: (B.common?.getMainWorkspace?.() || B.getMainWorkspace()).getAllBlocks(false).map(b => b.type) }
         })
         assert.equal(blocks.category, true)
-        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) assert.ok(blocks.types.includes(type))
+        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'deathmatch_configure']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)))
         if (process.argv.includes('--tilemap')) {
             await page.evaluate(() => {
@@ -74,7 +74,7 @@ async function main() {
         assert.deepEqual(errors, [])
         await page.screenshot({ path: path.join(evidence, 'hosted-blocks.png') })
         const result = { file, sha256: createHash('sha256').update(bytes).digest('hex'), versions,
-            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter category and three custom blocks, no grey JavaScript'],
+            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter settings/start and deathmatch rules blocks, no grey JavaScript'],
             tilemapEditor: process.argv.includes('--tilemap'),
             limitations: 'Not full gameplay, physical keyboard, lesson, or hosted settings-change validation.' }
         fs.writeFileSync(path.join(evidence, 'hosted-result.json'), JSON.stringify(result, null, 2))

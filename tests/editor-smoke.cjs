@@ -196,7 +196,7 @@ async function main() {
         })
         assert.equal(Number(blocks.damage), 2, 'TS argument survives decompilation')
         assert.equal(blocks.shooterCategory, true)
-        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) assert.ok(blocks.types.includes(type))
+        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'deathmatch_configure']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)), 'No grey JavaScript blocks')
         await page.screenshot({ path: path.join(artifacts, 'blocks.png') })
         assert.ok(blocks.types.includes('set_current_tilemap'), 'Level setup stays Blocks-friendly')
@@ -216,6 +216,7 @@ async function main() {
         const roundTrip = await editor.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
         assert.match(roundTrip, /setSoldiers\(3,\s*10,\s*5000\)/)
         assert.match(roundTrip, /shooter.startGame\(\)/)
+        assert.match(roundTrip, /deathmatch.configure\(\)/)
         assert.ok(!roundTrip.includes('namespace shooter'), 'Implementation is not inlined into main.ts')
         if (projectPNG) {
             // Independent storage/profile context, receiving only the exact exported PNG.
@@ -253,7 +254,7 @@ async function main() {
                     all.find(b => b.type === 'shooter_set_weapon').getInputTargetBlock('damage').setFieldValue('3', 'NUM')
                     return all.map(b => b.type)
                 })
-                for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) assert.ok(types.includes(type))
+                for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'deathmatch_configure']) assert.ok(types.includes(type))
                 assert.ok(!types.some(type => /typescript|javascript/.test(type)))
                 await sleep(500)
                 await command('switchjavascript', {}, imported.page)

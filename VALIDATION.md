@@ -16,6 +16,8 @@ These checks cover the actual main.ts entry point, exactly two soldiers per team
 
 Pathing checks decode committed tilemap assets, verify connected floor, exercise both barriers in both directions, check the 8×8 footprint, and test moving/replaced targets, independent fields, blocked/unreachable goals, reopened passages, and shot corridors (including bullet width). Collision checks delay destruction and replay stale overlaps so consumed shots or defeated soldiers cannot award duplicate damage/points.
 
+The additional engine/mode checks cover persistent player identity and fresh soldier bodies across respawn, weapon replacement and persistence, actual fired-shot damage/attacker snapshots after attacker death, projectile record cleanup, rules-free engine operation beyond ten eliminations, idempotent deathmatch selection, and match-end guards. The baseline assertions use a test-only compatibility view of split player/soldier state; no flattened slot API is shipped.
+
 The mocks do **not** validate PXT compatibility, physics, sprite lifetime/off-screen cleanup, rendering, input, automatic zero-life game over, restart, Blocks, or PNG packaging. Passing them is not simulator verification.
 
 ## Local Arcade CLI compilation
@@ -63,7 +65,7 @@ This uses Puppeteer already installed in the sibling Arcade toolchain and an ins
 
 The script starts its own loopback-only editor server on ports 3242/3243, uses a disposable browser profile and in-memory workspace, and closes the browser/server on completion. It does not publish a project or change repository source. An internet connection is currently needed: this target loads the hosted simulator iframe at `https://trg-arcade.userpxt.io/---simulator`.
 
-Checks include two live soldiers per team, right/up human movement, retained aim, held/released firing, shared initial health, and the right wall boundary. Input is synthetic controller input through the simulator board, not a physical keyboard test. It then changes weapon damage in TypeScript, decompiles to Blocks, checks all three custom block types and absence of grey blocks, edits damage in Blocks, and checks the regenerated TypeScript. This avoids a false pass from cached Blocks/TypeScript files.
+Checks include two live soldiers per team, right/up human movement, retained aim, held/released firing, shared initial health, and the right wall boundary. Input is synthetic controller input through the simulator board, not a physical keyboard test. It then changes weapon damage in TypeScript, decompiles to Blocks, checks all four custom block types (three Shooter blocks plus deathmatch selection) and absence of grey blocks, edits damage in Blocks, and checks the regenerated TypeScript. This avoids a false pass from cached Blocks/TypeScript files.
 
 Screenshots and a JSON result are written to ignored `local/editor-smoke/`. Screenshots are evidence only, **not project PNG artifacts**. The baseline smoke checks do not cover the complete gameplay checklist, match endings, physical controls, lesson variants, or PNG export/import. Optional checks below cover controlled combat/endgame and artifact import. A successful Blocks round trip must also preserve shooter.ts as a separate project file during final artifact validation.
 
@@ -71,7 +73,7 @@ For the team/training-yard checks, run `node tests/editor-smoke.cjs --arena`. `t
 
 - Human/shot wall collision and 10 px/s bot detours around each barrier.
 - All three bots firing, both projectile teams, harmless contact, and friendly bullets passing through an ally to damage a red soldier.
-- Real bullet eliminations, team points, five-second red and human respawn delays, team-specific entry points, occupied points delaying human respawn, and controls rebinding afterward.
+- Real bullet eliminations, team points, persistent red player identity with a fresh soldier body on respawn, five-second red and human respawn delays, team-specific entry points, occupied points delaying human respawn, and controls rebinding afterward.
 - Both team victory paths: seed the relevant score at nine and target health at one, then use a **real bullet for the tenth point**. Inspect result screenshots and use the game-over dialog's actual button restart; verify fresh scores and 2v2 soldiers. This does not simulate ten natural eliminations or establish match balance.
 - Tilemap thumbnail opening with wall controls, then Done. `--tilemap` runs just the editor-opening check alongside baseline smoke checks.
 
@@ -90,7 +92,7 @@ The first command exports the **baseline before test edits**, using Arcade's sim
 
 The original downloaded bytes are copied to ignored `local/exports/arcade-shooter.png`. A fresh isolated browser context receives only that file through the editor's drag/drop importer. It checks 2v2 startup, custom Blocks, and a damage edit that round-trips and takes effect after stop/start compilation. `local/exports/validation.json` records the checksum and checks. Changing settings in the test does not modify the exported baseline.
 
-The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, presses Play if needed, and checks simulator startup and the three custom Blocks without grey JavaScript. It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
+The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, presses Play if needed, and checks simulator startup and all four custom Blocks without grey JavaScript. It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
 
 These checks need internet access. Exporting again may change image pixels and PNG bytes; revalidate and record the checksum of the exact file handed to a tester. Files under `local/editor-smoke/` are ordinary evidence screenshots, not project artifacts. Full gameplay and physical-control testing remain separate.
 
@@ -115,7 +117,7 @@ These checks need internet access. Exporting again may change image pixels and P
 ## Customization and Blocks
 
 - Change each setting independently and verify its effect after stopping and starting the simulator (forces compilation). Fast restart can reuse previously compiled code.
-- Verify the Shooter category contains weapon settings, soldier settings, and start shooter. The soldier block keeps the legacy `shooter_set_enemies` ID, but displays soldier terminology and generates `setSoldiers`.
+- Verify the Shooter category contains weapon settings, soldier settings, and start shooter. Verify **use deathmatch rules** in the Deathmatch category and that `deathmatch.configure()` survives both round-trip directions. The soldier block keeps the legacy `shooter_set_enemies` ID, but displays soldier terminology and generates `setSoldiers`.
 - Switch main.ts to Blocks and back: calls and argument values should survive without grey JavaScript blocks.
 - Confirm shooter.ts remains a separate implementation file and is not inlined into main.ts.
 - Verify settings below supported minima are clamped and do not crash.
@@ -124,7 +126,7 @@ These checks need internet access. Exporting again may change image pixels and P
 
 - Export using Arcade's project-PNG facility, not a screenshot or ordinary image export.
 - Import the exported PNG into a fresh editor project without access to this repository.
-- Confirm main.ts, main.blocks, shooter.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
+- Confirm main.ts, main.blocks, shooter.ts, deathmatch.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
 - Open the tilemap thumbnail in Blocks and verify the level editor and wall tool work on the imported artifact.
 - Repeat gameplay and Blocks checks against the imported artifact.
 - Make a settings change after import and verify its effect after restart.

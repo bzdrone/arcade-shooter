@@ -8,10 +8,14 @@ const { stripTypeScriptTypes } = require('node:module')
 const { test } = require('node:test')
 const root = path.resolve(__dirname, '..')
 const shooter = fs.readFileSync(path.join(root, 'shooter.ts'), 'utf8').replace(/\n}\s*$/, `
-    export function inspect() { return { soldiers, blueScore, redScore, player, finished,
+    export function inspect() { return { players, shots, player, finished,
         blueShotKind, redShotKind, spentShotKind, soldierKind, weaponDamage, fireInterval, projectileSpeed } }
+    export function registerShot(sprite, attacker) { shots.push(new Shot(sprite, attacker, attacker.weapon.damage)) }
 }`)
-const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter, { mode: 'transform' })
+const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8').replace(/\n}\s*$/, `
+    export function inspect() { return { blueScore, redScore } }
+}`)
+const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode, { mode: 'transform' })
 
 function createGame(modifyLevel) {
     const level = require('./tilemap-fixture.cjs')()
@@ -22,7 +26,7 @@ function createGame(modifyLevel) {
     const kinds = { Projectile: 1, create: () => nextKind++ }
     function makeSprite(kind) {
         const sprite = { id: nextId++, x: 0, y: 0, vx: 0, vy: 0, dead: false, collisionKind: kind,
-            kind: () => kind, setKind: value => { kind = value },
+            kind: () => kind, setKind: value => { if (kind === kinds.Projectile) sprite.collisionKind = value; kind = value },
             setPosition(x, y) { this.x = x; this.y = y },
             setStayInScreen() {}, setFlag(flag, value) { this.flags = { ...this.flags, [flag]: value } },
             destroy() { if (this.dead) return; this.dead = true; pending.push({ kind, sprite: this }) }
@@ -52,12 +56,25 @@ function createGame(modifyLevel) {
             onOverlap: (a, b, handler) => overlaps.push({ a, b, handler })
         }
     })
+    vm.runInContext('Array.prototype.removeAt = function(i) { return this.splice(i, 1)[0] }; Array.prototype.removeElement = function(x) { const i = this.indexOf(x); if (i >= 0) this.splice(i, 1) }', context)
     vm.runInContext(source, context)
-    return { api: context.shooter, A, all, level,
-        state: () => context.shooter.inspect(),
+    // Compatibility view for baseline assertions; lifecycle state remains real engine state.
+    const state = () => {
+        const s = context.shooter.inspect()
+        return { ...s, ...context.deathmatch.inspect(), soldiers: s.players.map(p => new Proxy(p, {
+            get(p, key) { return ['sprite', 'health', 'nextShotAt', 'navigation', 'field'].includes(key)
+                ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
+        })) }
+    }
+    return { api: context.shooter, mode: context.deathmatch, A, all, level,
+        state,
         tick(time) { now = time; updates.forEach(handler => handler()) },
         runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
-        shot(team) { return makeSprite(team === 0 ? this.state().blueShotKind : this.state().redShotKind) },
+        shot(team) {
+            const s = this.state(), shot = makeSprite(team === 0 ? s.blueShotKind : s.redShotKind)
+            context.shooter.registerShot(shot, s.players[team === 0 ? 0 : 2])
+            return shot
+        },
         overlap(a, b) {
             overlaps.filter(h => h.a === a.collisionKind && h.b === b.collisionKind).forEach(h => h.handler(a, b))
         },
@@ -92,7 +109,7 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
 
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts','main.blocks','shooter.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
@@ -152,7 +169,7 @@ test('friendly fire is off, and a friendly shot can continue to an opponent', ()
 })
 
 test('consumed projectiles and defeated soldiers reject stale overlaps', () => {
-    const g = createGame(); g.api.setWeapon(3, 750, 80); g.api.startGame()
+    const g = createGame(); g.api.setWeapon(3, 750, 80); g.mode.configure(); g.api.startGame()
     const s = g.state(), target = s.soldiers[2].sprite, shot = g.shot(0)
     g.overlap(shot, target); g.overlap(shot, target); g.overlap(shot, s.soldiers[3].sprite)
     assert.equal(g.state().blueScore, 1); assert.equal(s.soldiers[3].health, 3)
@@ -199,7 +216,7 @@ test('external sprite removal schedules respawn without an elimination point', (
 })
 
 for (const [team, slot, won] of [[0, 2, true], [1, 0, false]]) test(`team ${team} wins at ten eliminations`, () => {
-    const g = createGame(); g.api.setWeapon(3, 750, 80); g.api.startGame()
+    const g = createGame(); g.api.setWeapon(3, 750, 80); g.mode.configure(); g.api.startGame()
     for (let i = 0; i < 10; i++) {
         g.tick(i * 5000)
         const sprite = g.state().soldiers[slot].sprite
@@ -221,6 +238,72 @@ test('settings clamp and remain immutable after startup', () => {
     assert.ok(g.state().soldiers.slice(1).every(s => s.navigation.speed === 1))
     g.overlap(g.shot(0), g.state().soldiers[2].sprite)
     assert.equal(g.state().soldiers[2].respawnAt, 1000)
+})
+
+test('engine alone emits persistent players without scoring or ending the match', () => {
+    const g = createGame(), events = []
+    g.api.onElimination((attacker, victim) => events.push([attacker, victim]))
+    g.api.setWeapon(3, 750, 80); g.api.startGame()
+    const attacker = g.state().players[0], victim = g.state().players[2], body = victim.soldier
+    for (let i = 0; i < 11; i++) {
+        g.tick(i * 5000)
+        g.overlap(g.shot(0), victim.soldier.sprite)
+    }
+    assert.equal(events.length, 11)
+    assert.ok(events.every(e => e[0] === attacker && e[1] === victim))
+    assert.equal(victim.soldier, null)
+    g.tick(55000)
+    assert.notEqual(victim.soldier, body)
+    assert.equal(g.state().players[2], victim)
+    assert.equal(g.result, undefined)
+    assert.equal(g.state().blueScore, 0)
+    assert.ok(!g.hud().some(s => /FIRST TO 10|BLUE/.test(s)))
+})
+
+test('real fired shots retain damage and attacker after weapon change and attacker death', () => {
+    const g = createGame(), events = []
+    g.api.onElimination((a, v) => events.push([a, v]))
+    g.api.startGame()
+    const [human, ally, red] = g.state().players
+    const initialBody = human.soldier
+    g.A.pressed = true; g.tick(750); g.A.pressed = false
+    const oldShot = g.state().shots.find(s => s.attacker === human).sprite
+    const upgraded = g.api.createWeapon(3, 100, 120)
+    g.api.giveWeapon(human, upgraded)
+    assert.notEqual(ally.weapon, upgraded)
+    g.overlap(oldShot, red.soldier.sprite)
+    assert.equal(red.soldier.health, 2, 'Old shot keeps original damage')
+    g.A.pressed = true; g.tick(1500); g.A.pressed = false
+    const newShot = g.state().shots.find(s => s.attacker === human).sprite
+    assert.equal(newShot.vx, 120)
+    const oldSprite = human.soldier.sprite
+    for (let i = 0; i < 3; i++) g.overlap(g.shot(1), oldSprite)
+    assert.equal(human.soldier, null)
+    g.overlap(newShot, red.soldier.sprite)
+    assert.equal(events.at(-1)[0], human, 'Dead attacker still owns the elimination')
+    assert.equal(events.at(-1)[1], red)
+    g.tick(6500)
+    assert.notEqual(human.soldier, initialBody)
+    assert.equal(human.weapon, upgraded)
+    assert.equal(human.soldier.nextShotAt, 6600)
+    g.A.pressed = true; g.tick(6600); g.A.pressed = false
+    const cleanup = g.state().shots.find(s => s.attacker === human).sprite
+    cleanup.destroy(); g.flush()
+    assert.ok(!g.state().shots.some(s => s.sprite === cleanup), 'Wall/expiry destruction forgets ownership records')
+})
+
+test('deathmatch selection is idempotent and endMatch blocks later damage and respawns', () => {
+    const g = createGame(); g.mode.configure(); g.mode.configure(); g.api.startGame()
+    defeat(g, 2, 0)
+    assert.equal(g.state().blueScore, 1)
+    g.api.endMatch(1)
+    assert.equal(g.result, false)
+    g.overlap(g.shot(0), g.state().players[3].soldier.sprite)
+    g.tick(10000)
+    assert.equal(g.state().players[3].soldier.health, 3)
+    assert.equal(g.state().players[2].soldier, null)
+    g.api.endMatch(0)
+    assert.equal(g.result, false)
 })
 
 test('invalid or disconnected team spawn tiles are reported', () => {

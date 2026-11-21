@@ -5,14 +5,24 @@ const assert = require('node:assert/strict')
 async function install(sim) {
     await sim.waitForFunction(() => {
         const g = typeof pxsim !== 'undefined' && pxsim.runtime?.globals
-        return g && Object.keys(g).some(k => k.startsWith('soldiers___') && g[k]?.data?.length === 4)
+        return g && Object.keys(g).some(k => k.startsWith('players___') && g[k]?.data?.length === 4)
     }, { timeout: 30000 })
     await sim.evaluate(() => {
         const get = name => {
             const g = pxsim.runtime.globals
-            return g[Object.keys(g).find(k => k.startsWith(name + '___'))]
+            return g[Object.keys(g).find(k => k.startsWith(name + '___') &&
+                (name !== 'players' || g[k]?.data?.some(p => p.fields && 'soldier' in p.fields)))]
         }
-        const slots = () => get('soldiers').data.map(s => s.fields)
+        // Keep the controlled-test slot view while reading/writing the split runtime model.
+        const bodyKeys = ['sprite', 'health', 'nextShotAt', 'navigation', 'field']
+        const slots = () => get('players').data.map(p => new Proxy(p.fields, {
+            get(p, key) { return bodyKeys.includes(key) ? p.soldier?.fields[key] : p[key] },
+            set(p, key, value) {
+                if (bodyKeys.includes(key)) p.soldier.fields[key] = value
+                else p[key] = value
+                return true
+            }
+        }))
         const point = sprite => sprite ? { x: sprite.fields._x / 256 + 4, y: sprite.fields._y / 256 + 4 } : {}
         window.team = {
             get, slots, point,
@@ -115,6 +125,8 @@ async function checkArena({ sim, command, button, sleep, snapshot, screenshot })
     await sim.evaluate(() => {
         team.freezeBots()
         ;[[24,24],[56,24],[88,24],[136,88]].forEach((p,i) => team.place(i,...p))
+        window.originalRedPlayer = team.get('players').data[2]
+        window.originalRedSoldier = window.originalRedPlayer.fields.soldier
     })
     await button(5, true)
     await sim.waitForFunction(() => !team.slots()[2].sprite, { timeout: 6500 })
@@ -127,6 +139,8 @@ async function checkArena({ sim, command, button, sleep, snapshot, screenshot })
     await sim.waitForFunction(() => !!team.slots()[2].sprite, { timeout: 2500 })
     const redRespawn = (await snapshot()).soldiers[2]
     assert.equal(redRespawn.health, 3)
+    assert.ok(await sim.evaluate(() => team.get('players').data[2] === window.originalRedPlayer &&
+        window.originalRedPlayer.fields.soldier !== window.originalRedSoldier), 'Respawn preserves player and replaces soldier')
     assert.ok(redRespawn.x > 128, 'Red soldier returns at a red spawn')
     console.log('PASS: real bullets, friendly fire off, elimination point, delayed red respawn')
 
@@ -174,9 +188,10 @@ async function checkArena({ sim, command, button, sleep, snapshot, screenshot })
         await button(5,true); await sleep(100); await button(5,false)
         await sim.waitForFunction(() => {
             const g = pxsim.runtime?.globals || {}
-            const get = name => g[Object.keys(g).find(k => k.startsWith(name + '___'))]
+            const get = name => g[Object.keys(g).find(k => k.startsWith(name + '___') &&
+                (name !== 'players' || g[k]?.data?.some(p => p.fields && 'soldier' in p.fields)))]
             return !get('finished') && get('blueScore') === 0 && get('redScore') === 0
-                && get('soldiers')?.data?.length === 4 && get('soldiers').data.every(s => s.fields.sprite)
+                && get('players')?.data?.length === 4 && get('players').data.every(p => p.fields.soldier?.fields.sprite)
         }, { timeout: 15000 })
         await install(sim)
         console.log(`PASS: team ${winningTeam} wins on tenth real elimination, game-over button restarts 2v2`)

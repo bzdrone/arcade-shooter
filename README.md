@@ -61,7 +61,7 @@ The author-side export/import command and local artifact location are documented
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
-2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
+2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, deathmatch.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
 3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
 4. Run the simulator and check the Blocks customization surface and tilemap editor.
 
@@ -75,7 +75,8 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
-- shooter.ts: game implementation and annotated Blocks API.
+- shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
+- deathmatch.ts: first-team-to-ten rules, team scores, and mode-owned HUD text; selected by `deathmatch.configure()` before startup.
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
 - tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
@@ -88,6 +89,10 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
 - [Development plan](PLAN.md): agreed next steps and development status.
+
+Baseline settings and mode selection apply before startGame(); later settings calls are ignored. The Shooter category retains its three settings/start blocks; the Deathmatch category adds **use deathmatch rules**. Without mode rules, the engine still runs combat and respawns but does not score eliminations or end a match automatically.
+
+For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` makes a weapon value, and `shooter.giveWeapon(player, weapon)` changes that player's subsequent shots and survives respawn. Already-fired shots retain their original damage and attacker; replacing a weapon does not reset the current cooldown. `shooter.onElimination(function (attacker, victim) { ... })` registers rules before startup and reports persistent players, not disposable soldier bodies. External sprite removal is not an elimination. Modes supply HUD text with `shooter.setStatus(heading, ruleText)` and finish with `shooter.endMatch(winningTeam)` (0 = blue, 1 = red). Player/action/event Blocks and other modes are planned, not implemented yet.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
 
