@@ -54,8 +54,10 @@ Temporary status and agreed next steps live here. Durable usage is in README.md,
 - User agreed to head toward a GitHub Release rather than build a Pages site now. Proposed version: `v0.1.0-preview.1`, marked prerelease because actual learner evaluation is pending.
 - Added release notes and a pinned candidate descriptor under `releases/`, `RELEASING.md`, and dependency-free `tools/prepare-release.cjs`. The helper stages original PNG bytes, separate learner handouts, license, SHA256SUMS and provenance under ignored `local/releases/v0.1.0-preview.1/`. It checks source against tested game commit `a422488` and PNG identity against matching local/hosted evidence; it does not rerun runtime tests or publish.
 - Introduction now references the separately attached activity by filename, avoiding a repository-relative link that would break for flat release downloads.
-- **No Git remote is configured, and no tags exist.** Confirm GitHub destination and public/private visibility with the user before repository creation or remote setup. No account/repository inferred from the local Windows username.
-- Preparation changes are not committed. Commit only with approval, then rerun preparation from that clean commit before tagging/uploading; the release tag should include the handouts/preparation files. Push, draft creation, and publication remain gated by user approval.
+- Before the first push, history was rewritten (with user approval) to replace a personal author email with the GitHub noreply address. Trees are identical; the tested game commit is now `a422488` (was `c35b715`). A local `backup/pre-email-rewrite` branch keeps the old history and should not be pushed.
+- Remote `origin` = https://github.com/bzdrone/arcade-shooter, created **private** for validation; the intended final visibility is public. `main` and annotated tag `v0.1.0-preview.1` (→ `692ee8a`, preparation commit) are pushed.
+- **Draft prerelease** created with the prepared notes and exactly the six assets; re-downloaded assets pass `SHA256SUMS`. Not yet published.
+- Remaining, each needing user approval: review the draft, make the repository public, publish the draft, then re-download the PNG and record the final release URL here.
 
 ## Toolchain caveats
 

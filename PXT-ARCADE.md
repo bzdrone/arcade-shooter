@@ -6,7 +6,7 @@ These are observations from the versions below, not promises about all MakeCode 
 
 ## 1. Environment and known versions
 
-All checkouts live under `C:\Users\bzdrone\Source` (`/c/Users/bzdrone/Source` in Bash):
+All checkouts are sibling directories next to this repository (tests reference them as `../../pxt-arcade` and so on):
 
 | Directory | Purpose / known revision |
 | --- | --- |

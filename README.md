@@ -2,6 +2,8 @@
 
 A development repository for a MakeCode Arcade learning project about gameplay concepts that transfer to FPS modding.
 
+**To play:** download `arcade-shooter.png` and `INTRO.md` from the newest version on the [Releases page](https://github.com/bzdrone/arcade-shooter/releases), then import the PNG at https://arcade.makecode.com/. You don't need to clone this repository.
+
 ## Audience and artifact
 
 This repository is for authors developing the game and learning experience. Learners are not expected to clone it, use Git, or assemble its source files.
