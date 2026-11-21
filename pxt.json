@@ -1,0 +1,12 @@
+{
+    "name": "arcade-shooter",
+    "description": "A TypeScript-first MakeCode Arcade shooter for learning gameplay modification.",
+    "dependencies": {
+        "device": "*"
+    },
+    "files": [
+        "main.ts",
+        "shooter.ts"
+    ],
+    "preferredEditor": "tsprj"
+}
