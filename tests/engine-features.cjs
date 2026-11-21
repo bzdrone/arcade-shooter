@@ -37,4 +37,29 @@ messages.announce("TRAINING CONTINUES")
     assert.equal(await ctx.sim.evaluate(() => team.get('finished')), false)
     console.log('PASS: real HUD notifications/announcement, audience filtering, queue expiry, non-blocking movement/fire')
 }
-module.exports = { variant, checkMessages }
+async function checkWeapons(ctx) {
+    await variant(ctx, `
+shooter.giveWeapon(shooter.allPlayers()[0], weapons.create(weapons.Kind.Shotgun))
+shooter.giveWeapon(shooter.allPlayers()[2], weapons.create(weapons.Kind.Knife))
+`)
+    await ctx.sim.evaluate(() => {
+        team.freezeBots(); [[24,24],[24,88],[88,24],[136,88]].forEach((p,i) => team.place(i,...p))
+    })
+    await ctx.button(5, true); await ctx.sleep(850); await ctx.button(5, false); await ctx.sleep(600)
+    assert.equal(await ctx.sim.evaluate(() => team.slots()[2].health), 3, 'Short shot cannot reach a distant target')
+    assert.equal(await ctx.sim.evaluate(() => team.snapshot().blueShots), 0, 'Range expires before old 2.5s cap')
+    await ctx.sim.evaluate(() => {
+        team.place(0,40,24)
+        team.slots()[2].navigation.fields.speed = 10
+        team.slots()[2].nextShotAt = 0
+    })
+    await ctx.sleep(900)
+    const pursuing = await ctx.sim.evaluate(() => team.snapshot())
+    assert.ok(pursuing.soldiers[2].x < 83 && pursuing.soldiers[2].x > 65)
+    assert.equal(pursuing.soldiers[2].nextShotAt, 0, 'Aligned bot closes distance without wasting shots')
+    await ctx.screenshot('range-pursuit.png')
+    await ctx.sim.waitForFunction(() => !team.slots()[0].sprite, { timeout: 7500 })
+    assert.equal(await ctx.sim.evaluate(() => team.get('redScore')), 1)
+    console.log('PASS: real short-range projectile expiry, range-aware pursuit and close-range elimination')
+}
+module.exports = { variant, checkMessages, checkWeapons }

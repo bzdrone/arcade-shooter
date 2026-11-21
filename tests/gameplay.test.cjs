@@ -16,7 +16,7 @@ const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8')
 const messages = fs.readFileSync(path.join(root, 'messages.ts'), 'utf8').replace(/\n}\s*$/, `
     export function inspect() { return { notifications, announcements } }
 }`)
-const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode + '\n' + messages, { mode: 'transform' })
+const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode + '\n' + messages + '\n' + fs.readFileSync(path.join(root, 'weapons.ts'), 'utf8'), { mode: 'transform' })
 
 function createGame(modifyLevel) {
     const level = require('./tilemap-fixture.cjs')()
@@ -37,7 +37,7 @@ function createGame(modifyLevel) {
     }
     const context = vm.createContext({
         Math: Object.assign(Object.create(Math), { idiv: (a, b) => Math.trunc(a / b) }),
-        pause() {}, img: () => ({ replace() {}, setPixel() {} }), image: { font5: {} },
+        pause() {}, img: () => ({ colors: [], replace(from, to) { this.colors.push([from, to]) }, setPixel() {} }), image: { font5: {} },
         tilemap: () => level.map, myTiles: { blueSpawn: 'myTiles.blueSpawn', redSpawn: 'myTiles.redSpawn' },
         tiles: level.tiles, SpriteKind: kinds, SpriteFlag: { DestroyOnWall: 1 },
         scene: { setBackgroundColor() {}, screenWidth: () => 160, screenHeight: () => 120,
@@ -48,8 +48,9 @@ function createGame(modifyLevel) {
             onUpdate: handler => updates.push(handler), over: value => { result = value }, splash: value => { message = value } },
         sprites: {
             create: (_, kind) => makeSprite(kind),
-            createProjectileFromSprite: (_, from, vx, vy) => {
+            createProjectileFromSprite: (picture, from, vx, vy) => {
                 const shot = makeSprite(kinds.Projectile)
+                shot.picture = picture
                 shot.setPosition(from.x, from.y); shot.vx = vx; shot.vy = vy
                 return shot
             },
@@ -67,7 +68,7 @@ function createGame(modifyLevel) {
                 ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
         })) }
     }
-    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, A, all, level,
+    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, A, all, level,
         state,
         tick(time) { now = time; updates.forEach(handler => handler()) },
         runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
@@ -110,7 +111,7 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
 
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','messages.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','messages.ts','weapons.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
@@ -373,6 +374,42 @@ test('message queues expire independently, stay bounded and never block firing',
     assert.equal(m.inspect().notifications.length, 8)
     assert.equal(m.inspect().notifications[0].text, 'N0')
     assert.equal(m.inspect().notifications.at(-1).text, 'N19')
+})
+
+test('weapon catalog has four distinct presets, clamped ranges and captured shot appearance/lifetime', () => {
+    const g = createGame(); g.runMain()
+    const presets = [0, 1, 2, 3].map(k => g.weapons.create(k))
+    assert.deepEqual(presets.map(w => w.name), ['Pistol', 'SMG', 'Shotgun', 'Knife'])
+    assert.equal(presets[0].damage, 1); assert.equal(presets[0].interval, 750); assert.equal(presets[0].speed, 80)
+    assert.equal(presets[0].range, 200)
+    assert.ok(presets[1].interval < presets[0].interval)
+    assert.ok(presets[2].damage > presets[0].damage)
+    assert.ok(presets[3].range < presets[2].range)
+    assert.equal(g.api.createWeapon(1, 100, 10, 999, 99).range, 25)
+    assert.equal(g.api.createWeapon(1, 100, 80, -1, -1).range, 1)
+    const human = g.api.allPlayers()[0]
+    g.api.giveWeapon(human, presets[2]); g.A.pressed = true; g.tick(750); g.A.pressed = false
+    const shot = g.state().shots.find(s => s.attacker === human).sprite
+    assert.equal(shot.lifespan, Math.floor(32000 / 70))
+    assert.equal(shot.picture.colors[0][1], 4)
+    g.api.giveWeapon(human, presets[3])
+    assert.equal(shot.picture.colors[0][1], 4)
+    assert.equal(shot.lifespan, Math.floor(32000 / 70))
+})
+
+test('short-range bots advance while aligned, then stop and fire in range', () => {
+    const g = createGame(); g.runMain(); lineUp(g)
+    const bot = g.api.allPlayers()[2]
+    g.api.giveWeapon(bot, g.weapons.create(3))
+    g.tick(750)
+    assert.ok(Math.hypot(bot.soldier.sprite.vx, bot.soldier.sprite.vy) > 0)
+    assert.ok(!g.state().shots.some(s => s.attacker === bot))
+    bot.soldier.sprite.setPosition(48, 24)
+    g.tick(1000)
+    assert.equal(bot.soldier.sprite.vx, 0)
+    assert.ok(g.state().shots.some(s => s.attacker === bot))
+    const shot = g.state().shots.find(s => s.attacker === bot).sprite
+    assert.equal(shot.lifespan, 150)
 })
 
 test('invalid or disconnected team spawn tiles are reported', () => {

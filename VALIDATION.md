@@ -22,6 +22,8 @@ The mocks do **not** validate PXT compatibility, physics, sprite lifetime/off-sc
 
 Message checks cover literal three-slot substitution, stable display names, all/human/team audience filtering, independent timers, FIFO bounds/overflow and firing while messages are active. With `--arena`, a disposable source variant also exercises actual HUD rendering, queue expiry and movement/firing; inspect `messages.png`. Variant source is not exported in the baseline PNG.
 
+Weapon checks cover all four presets, range/color clamps, fire-time color/lifetime snapshots and range-aware bot behavior. `--arena` adds real short-shot expiry (cannot hit a distant target), aligned knife pursuit without out-of-range firing, and a close-range elimination; inspect `range-pursuit.png`. Baseline deathmatch checks still use `(1, 750, 80)` and its original colors/lifetime.
+
 ## Compatibility probe
 
 Run `node tests/editor-smoke.cjs --scratch` to build a temporary Arcade project outside this repository using copies of existing bundled dependencies. It tests class-union dispatch, Blocks connection acceptance/rejection and an edited TS ↔ Blocks round-trip, and concurrent handlers around a `pause`-based wait. No probe APIs are packaged in the game. Results/screenshots go to ignored editor evidence. Normal rule tests also cover initial/respawn deployment, numeric variable persistence, team/player score isolation, roster-copy queries, statistics and self-inflicted/external-removal conventions.
@@ -132,7 +134,7 @@ These checks need internet access. Exporting again may change image pixels and P
 
 - Export using Arcade's project-PNG facility, not a screenshot or ordinary image export.
 - Import the exported PNG into a fresh editor project without access to this repository.
-- Confirm main.ts, main.blocks, shooter.ts, deathmatch.ts, messages.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
+- Confirm main.ts, main.blocks, shooter.ts, deathmatch.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
 - Open the tilemap thumbnail in Blocks and verify the level editor and wall tool work on the imported artifact.
 - Repeat gameplay and Blocks checks against the imported artifact.
 - Make a settings change after import and verify its effect after restart.

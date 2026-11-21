@@ -61,7 +61,7 @@ The author-side export/import command and local artifact location are documented
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
-2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, deathmatch.ts, messages.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
+2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, deathmatch.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
 3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
 4. Run the simulator and check the Blocks customization surface and tilemap editor.
 
@@ -77,6 +77,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
 - deathmatch.ts: first-team-to-ten rules over engine-owned team scores; selected by `deathmatch.configure()` before startup.
+- weapons.ts: four small named presets (pistol, SMG, shotgun, knife), not a real inventory simulation.
 - messages.ts: non-blocking notification/announcement queues and single-screen audience filtering.
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
@@ -101,6 +102,8 @@ Match state belongs to the engine: `getScore`/`setScore` accept a `Team | Player
 `getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Player/action/event Blocks and other modes are planned, not implemented yet.
 
 For mode messages, `messages.text("{} reached level {}", player, level)` substitutes up to three placeholders (strings, numbers, or players by display name). Send it using `messages.notify(text, target?)` or `messages.announce(text, target?)`. Omitted target means everyone; a player/team target uses the same union types as match state. On this single screen, only everyone/human/blue-team messages are shown. Notifications last 1.8 seconds, announcements 2.4 seconds, with separate queues capped at eight entries each. They never pause play; overflow removes the oldest waiting entry, preserving the current message.
+
+`createWeapon` also accepts optional range (pixels), projectile color (0 = team color, 1–15 = palette), and display name. Range is capped at speed × 2.5 seconds; wall/off-screen cleanup still applies. `weapons.create(weapons.Kind.Pistol/SMG/Shotgun/Knife)` returns a fresh preset. Pistol matches baseline; SMG fires faster at medium range, shotgun fires one heavy short-range shot (no spread), and knife is a very short-range shot using existing combat rules. Bots keep approaching until their current weapon can reach the target. There is no sniper or separate rifle preset.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
 

@@ -10,6 +10,7 @@
         "shooter.ts",
         "deathmatch.ts",
         "messages.ts",
+        "weapons.ts",
         "pathing.ts",
         "tilemap.g.ts",
         "tilemap.g.jres"

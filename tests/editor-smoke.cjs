@@ -287,8 +287,11 @@ async function main() {
             } finally { await fresh.close() }
         }
         if (process.argv.includes('--arena')) {
-            await require('./engine-features.cjs').checkMessages({ sim, page, command, editor, text, button, sleep,
-                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
+            const ctx = { sim, page, command, editor, text, button, sleep,
+                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) }
+            const features = require('./engine-features.cjs')
+            await features.checkMessages(ctx)
+            await features.checkWeapons(ctx)
         }
         assert.deepEqual(pageErrors, [], 'No uncaught browser errors')
         fs.writeFileSync(path.join(artifacts, 'result.json'), JSON.stringify({

@@ -25,7 +25,7 @@ namespace shooter {
     let shots: Shot[] = []
 
     export class Weapon {
-        constructor(public damage: number, public interval: number, public speed: number) {}
+        constructor(public damage: number, public interval: number, public speed: number, public range: number, public color: number, public name: string) {}
     }
 
     // One body, discarded on death. No match-long identity lives here.
@@ -60,8 +60,11 @@ namespace shooter {
         constructor(public sprite: Sprite, public attacker: Player, public damage: number) {}
     }
 
-    export function createWeapon(damage: number, interval: number, speed: number): Weapon {
-        return new Weapon(Math.max(1, Math.round(damage)), Math.max(50, Math.round(interval)), Math.max(10, Math.round(speed)))
+    /** Range is capped by the existing 2.5-second lifetime; color 0 keeps team colors. */
+    export function createWeapon(damage: number, interval: number, speed: number, range: number = 200, color: number = 0, name: string = null): Weapon {
+        speed = Math.max(10, Math.round(speed))
+        range = Math.max(1, Math.min(speed * 2.5, Math.round(range)))
+        return new Weapon(Math.max(1, Math.round(damage)), Math.max(50, Math.round(interval)), speed, range, Math.max(0, Math.min(15, Math.round(color))), name ? name : "Custom")
     }
 
     /** New shots use this weapon; existing shots and the current cooldown are unchanged. */
@@ -218,12 +221,12 @@ namespace shooter {
         if (now < soldier.nextShotAt) return
         const picture = img`5 5
                             5 5`
-        if (owner.team == 1) picture.replace(5, 3)
+        picture.replace(5, weapon.color > 0 ? weapon.color : owner.team == 0 ? 5 : 3)
         const shot = sprites.createProjectileFromSprite(picture, soldier.sprite, dx * weapon.speed, dy * weapon.speed)
         shots.push(new Shot(shot, owner, weapon.damage))
         shot.setKind(owner.team == 0 ? blueShotKind : redShotKind)
         shot.setFlag(SpriteFlag.DestroyOnWall, true)
-        shot.lifespan = 2500
+        shot.lifespan = Math.min(2500, Math.max(1, Math.floor(weapon.range * 1000 / weapon.speed)))
         soldier.nextShotAt = now + weapon.interval
     }
 
@@ -287,9 +290,9 @@ namespace shooter {
         if (!target) return
         const dx = target.sprite.x - soldier.sprite.x
         const dy = target.sprite.y - soldier.sprite.y
-        if (Math.abs(dy) <= 3 && pathing.clearLine(soldier.sprite.x, soldier.sprite.y, target.sprite.x, soldier.sprite.y)) {
+        if (Math.abs(dx) <= owner.weapon.range && Math.abs(dy) <= 3 && pathing.clearLine(soldier.sprite.x, soldier.sprite.y, target.sprite.x, soldier.sprite.y)) {
             fire(owner, dx < 0 ? -1 : 1, 0, now)
-        } else if (Math.abs(dx) <= 3 && pathing.clearLine(soldier.sprite.x, soldier.sprite.y, soldier.sprite.x, target.sprite.y)) {
+        } else if (Math.abs(dy) <= owner.weapon.range && Math.abs(dx) <= 3 && pathing.clearLine(soldier.sprite.x, soldier.sprite.y, soldier.sprite.x, target.sprite.y)) {
             fire(owner, 0, dy < 0 ? -1 : 1, now)
         } else {
             soldier.navigation.update(target.sprite, target.field)

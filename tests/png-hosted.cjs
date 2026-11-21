@@ -21,6 +21,7 @@ async function main() {
         const page = await browser.newPage()
         const errors = []
         page.on('pageerror', error => errors.push(error.message))
+        page.on('console', msg => { if (/error|diagnostic|shooter.ts/i.test(msg.text())) console.log('HOSTED CONSOLE', msg.text()) })
         await page.goto('https://arcade.makecode.com/', { waitUntil: 'networkidle2', timeout: 60000 })
         await page.waitForFunction(() => typeof pxt !== 'undefined' && document.body.innerText.includes('New Project'), { timeout: 60000 })
         const versions = await page.evaluate(() => pxt.appTarget.versions)
@@ -36,7 +37,12 @@ async function main() {
         const play = await page.$('.play-button.play')
         if (play) await play.click()
         const sim = await page.waitForFrame(frame => frame.url().includes('---simulator'), { timeout: 30000 })
-        await sim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 })
+        await sim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 }).catch(async error => {
+            await page.screenshot({ path: path.join(evidence, 'hosted-failure.png') })
+            console.log('HOSTED DIAGNOSTIC', await page.evaluate(() => document.body.innerText))
+            console.log('HOSTED ERRORS', errors)
+            throw error
+        })
         const main = await page.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
         assert.match(main, /shooter.setWeapon\(1,\s*750,\s*80\)/)
         assert.match(main, /shooter.setSoldiers\(3,\s*10,\s*5000\)/)

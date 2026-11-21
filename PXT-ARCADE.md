@@ -74,6 +74,7 @@ Match source tags to installed dependencies when reasoning about behavior. Refer
   - The same real-simulator probe confirms a `pause`-based wait suspends only its calling parallel handler while another handler completes; no `async`/`await` is needed. `typeof` and rejection of `await` remain source-reading findings, not additional compile tests.
   - The probe creates/removes its project in an OS temporary directory and copies existing bundled dependencies; it installs nothing. Evidence stays ignored. Set `preferredEditor: tsprj` when importing a probe with an empty Blocks companion, or editor import may prefer empty Blocks over main.ts.
   - Blocks: `pxtblocks/loader.ts` `getBlocklyCheckForType` splits a parameter type on `|`; any `any` part makes the input accept everything.
+- **Hosted stable default-argument restriction:** Arcade 4.1.28 / PXT 13.1.25 rejects string defaults such as `name: string = "Custom"` with TS9212 (only numbers/null/booleans), even though local PXT 13.2.13 accepts them. Use `= null` and substitute the string inside the function. Apply this to message placeholder defaults too. Unused mode APIs may be tree-shaken, so a baseline-only hosted startup cannot establish compatibility for every API; exercise actual modes.
 - Regular TypeScript namespace-private state is not automatically exposed to host tests. The current rule suite injects an inspection hook into the **transformed test copy only**; do not add debug exports to the shipped game just to satisfy host tests.
 
 ## 4. Blocks: file presence and real round trips matter

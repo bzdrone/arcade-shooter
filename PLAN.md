@@ -64,7 +64,13 @@ The user authorized autonomous implementation of A–D using best judgment, full
 - Use timed HUD queues, never `game.splash` or another gameplay-blocking UI. On the single screen, show messages for everyone, the human, or the human's team; drop bot-only/opposing-team messages.
 - Support up to three `{}` placeholders filled by strings, numbers, or players (using display names). Keep the bottom status line engine-only.
 
-**C. Weapons**
+**C. Weapons** (complete; validated)
+
+- Added a fresh-value catalog: pistol `(1,750,80,200,team color)`, SMG `(1,300,100,64,7)`, shotgun `(3,1000,70,32,4)`, knife `(3,500,80,12,1)`; tuples are damage/interval/speed/range/color. Shotgun is one heavy short-range shot, knife a very short-range projectile; no spread or separate melee system. No sniper or rifle.
+- Weapon range caps shot lifespan at `min(range/speed, 2.5 seconds)`; color/lifespan stay captured on the fired sprite. Bots close distance before firing short-range weapons. Default deathmatch retains its original stats, colors and 2.5-second shots.
+- Validation: 37 host tests, Arcade build, full local `--arena --png`, Blocks/fresh import, and hosted `--tilemap` pass. Simulator source variants prove short-shot expiry, aligned knife pursuit without wasted shots, and an actual close-range elimination; inspected pursuit screenshot. No movement-speed or balance changes.
+- Hosted validation exposed TS9212 for string default arguments accepted locally. Replaced weapon-name and message-placeholder string defaults with null + internal fallback; documented in PXT-ARCADE.md and reran validation successfully.
+- Slice C PNG: 47,690 bytes; SHA-256 `5c833f54f5d468632493fadd76252c403fa815865d1890fb792bd3a3d5f584c2`. Later exports replace local evidence; published assets are unchanged.
 
 - Add range and projectile color while respecting current shot lifetime and wall behavior. Keep deathmatch's default `(1, 750, 80)` weapon and effectively unchanged range.
 - Add a small named preset catalog in generic engine terms, not Portal enums or real gun names. User excluded sniper and preferred one automatic weapon. Selected catalog: pistol, SMG, shotgun, knife (very short range); omit rifle.

@@ -8,12 +8,13 @@ namespace messages {
     let announcements: Entry[] = []
 
     function valueText(value: string | number | shooter.Player): string {
+        if (value == null) return ""
         if (value instanceof shooter.Player) return shooter.getDisplayName(value)
         return "" + value
     }
 
     /** Replace up to three {} placeholders; extra placeholders remain literal. */
-    export function text(template: string, a: string | number | shooter.Player = "", b: string | number | shooter.Player = "", c: string | number | shooter.Player = ""): string {
+    export function text(template: string, a: string | number | shooter.Player = null, b: string | number | shooter.Player = null, c: string | number | shooter.Player = null): string {
         const values = [valueText(a), valueText(b), valueText(c)]
         let result = ""
         let slot = 0
