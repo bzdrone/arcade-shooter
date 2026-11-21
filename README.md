@@ -18,6 +18,28 @@ Learning activities use a predict → change → test → explain loop. Weapon s
 
 These are transferable shooter concepts, not a universal FPS modding API. The game is a local simulation with no networking or external assets; it does not implement first-person rendering or client/server authority.
 
+## Training yard and navigation
+
+The level is a single-screen **10×7 tile training yard**, using standard 16-pixel tiles. A solid perimeter surrounds two staggered cover barriers, with a central lane and routes above, below, and around the sides. The lower eight screen pixels are outside the 112-pixel-high map; there is no camera scrolling.
+
+```text
+##########
+#........#
+#..C.....#
+#..CP.C..#
+#.....C..#
+#........#
+##########
+```
+
+`#` is the perimeter, `C` is solid cover, `.` is floor, and `P` is the initial player position (the nearest floor center to screen center).
+
+Walls block the player and bots; shots disappear on impact. Cover is indestructible and blocks shots from either side. Enemies spawn on reachable inner-perimeter floor at least 40 pixels from the player, with a maximum of six live enemies. If no safe entry is available, that spawn is skipped.
+
+In **Blocks**, click the thumbnail in **set tilemap to** to open Arcade's level editor. Use **My Tiles** for this project's floor/wall/cover artwork, and the **wall tool** to mark cells blocked or passable. Changing artwork alone does not change collision. Keep the 10×7 dimensions, 16-pixel tile size, a solid outer border, and connected floor for this initial layout. Stop/start the simulator after editing.
+
+`pathing.ts` reads those same wall markings. A shared reverse breadth-first search rebuilds a distance field toward the player every 250 ms. Bots follow cardinal tile-center waypoints, finishing a step before turning so they do not cut through cover corners. If a route is unavailable, they stop and retry as the field refreshes. This is basic pursuit, not tactical cover-seeking; the module is intended for small maps and sprites no larger than 8×8 pixels.
+
 ## Test an exported project PNG
 
 Open https://arcade.makecode.com/ and drag the **original project PNG file** onto the page, or use **Import → Import File**. Press the simulator's Play button if it does not start automatically. No repository checkout, local server, or source-file assembly is needed.
@@ -33,10 +55,11 @@ The author-side export/import command and local artifact location are documented
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
-2. Replace main.ts with this repository's main.ts.
-3. Add shooter.ts in the Explorer and copy in this repository's shooter.ts.
-4. Retain the new project's main.blocks file; it enables the Blocks editor. The repository manifest also includes main.blocks for imports/exports. Without that companion file, Arcade treats the project as TypeScript-only.
-5. Run the simulator and check the Blocks customization surface.
+2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
+3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
+4. Run the simulator and check the Blocks customization surface and tilemap editor.
+
+Prefer importing the tested project PNG for playtesting. `tools/build-level.cjs` can regenerate the initial map using the sibling toolchain's asset serializer, but **overwrites editor-made level changes**; it is an authoring helper, not a learner requirement.
 
 MakeCode's GitHub import is another authoring option for a hosted repository containing the Arcade pxt.json project. It is not the learner delivery mechanism.
 
@@ -47,8 +70,11 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: game implementation and annotated Blocks API.
+- pathing.ts: shared tilemap distance field and per-bot waypoint movement.
+- tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
+- tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
 - pxt.json: Arcade project manifest.
-- tests/gameplay.test.cjs: dependency-free host-side logic checks; run with `node --test tests/gameplay.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
+- tests/gameplay.test.cjs / tests/pathing.test.cjs: dependency-free host-side logic and route checks; run with `node --test tests/gameplay.test.cjs tests/pathing.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
 - tests/editor-smoke.cjs: real-editor browser smoke checks and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
 - tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.

@@ -17,6 +17,7 @@ namespace shooter {
     let nextSpawnAt = 0
     let enemies: Sprite[] = []
     let health: number[] = []
+    let bots: pathing.Bot[] = []
     const spentProjectileKind = SpriteKind.create()
 
     function untrackEnemy(enemy: Sprite): void {
@@ -24,6 +25,7 @@ namespace shooter {
         if (index >= 0) {
             enemies.removeAt(index)
             health.removeAt(index)
+            bots.removeAt(index)
         }
     }
 
@@ -52,6 +54,20 @@ namespace shooter {
     function spawnEnemy(): void {
         // Bound the number of live enemies so experimentation cannot flood the screen.
         if (enemies.length >= 6) return
+        const entries: tiles.Location[] = []
+        const size = pathing.size()
+        for (let row = 0; row < pathing.height(); row++) {
+            for (let column = 0; column < pathing.width(); column++) {
+                if (column != 1 && column != pathing.width() - 2 && row != 1 && row != pathing.height() - 2) continue
+                const dx = (column + 0.5) * size - player.x
+                const dy = (row + 0.5) * size - player.y
+                if (pathing.reachable(column, row) && dx * dx + dy * dy >= 40 * 40) {
+                    entries.push(tiles.getTileLocation(column, row))
+                }
+            }
+        }
+        if (entries.length == 0) return
+        const entry = entries[randint(0, entries.length - 1)]
         const enemy = sprites.create(img`
             . . 2 2 2 2 . .
             . 2 2 2 2 2 2 .
@@ -62,20 +78,10 @@ namespace shooter {
             . 2 2 2 2 2 2 .
             . . 2 . . 2 . .
         `, SpriteKind.Enemy)
-        // Pick an edge, leaving a small margin inside the playfield.
-        const edge = randint(0, 3)
-        if (edge == 0) {
-            enemy.setPosition(5, randint(20, scene.screenHeight() - 5))
-        } else if (edge == 1) {
-            enemy.setPosition(scene.screenWidth() - 5, randint(20, scene.screenHeight() - 5))
-        } else if (edge == 2) {
-            enemy.setPosition(randint(5, scene.screenWidth() - 5), 20)
-        } else {
-            enemy.setPosition(randint(5, scene.screenWidth() - 5), scene.screenHeight() - 5)
-        }
+        tiles.placeOnTile(enemy, entry)
         enemies.push(enemy)
         health.push(enemyStartingHealth)
-        enemy.follow(player, enemySpeed)
+        bots.push(new pathing.Bot(enemy, enemySpeed))
     }
 
     function fire(): void {
@@ -84,6 +90,7 @@ namespace shooter {
             5 5
         `, player, facingX * projectileSpeed, facingY * projectileSpeed)
         projectile.lifespan = 1600
+        projectile.setFlag(SpriteFlag.DestroyOnWall, true)
     }
 
     /** Start one game. Call the settings blocks first. Move with arrows; hold A to fire. */
@@ -104,6 +111,29 @@ namespace shooter {
             . 8 . . . . 8 .
         `, SpriteKind.Player)
         player.setPosition(scene.screenWidth() / 2, scene.screenHeight() / 2)
+        pathing.refresh(player, game.runtime(), true)
+        // Find the nearest floor center, including after an author moves cover.
+        let nearest = 1000000
+        let start: tiles.Location = null
+        for (let row = 0; row < pathing.height(); row++) {
+            for (let column = 0; column < pathing.width(); column++) {
+                if (!pathing.walkable(column, row)) continue
+                const dx = (column + 0.5) * pathing.size() - scene.screenWidth() / 2
+                const dy = (row + 0.5) * pathing.size() - scene.screenHeight() / 2
+                const distance = dx * dx + dy * dy
+                if (distance < nearest) {
+                    nearest = distance
+                    start = tiles.getTileLocation(column, row)
+                }
+            }
+        }
+        if (!start) {
+            game.splash("The level needs a walkable floor tile.")
+            game.over(false)
+            return
+        }
+        tiles.placeOnTile(player, start)
+        pathing.refresh(player, game.runtime(), true)
         player.setStayInScreen(true)
         controller.moveSprite(player, 70, 70)
         info.setLife(5)
@@ -151,6 +181,8 @@ namespace shooter {
                 }
             }
             const now = game.runtime()
+            pathing.refresh(player, now)
+            for (let i = 0; i < bots.length; i++) bots[i].update(player)
             if (controller.A.isPressed() && now >= nextShotAt) {
                 fire()
                 nextShotAt = now + fireInterval

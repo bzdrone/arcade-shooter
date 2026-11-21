@@ -8,15 +8,16 @@ const { test } = require('node:test')
 const vm = require('node:vm')
 
 const source = stripTypeScriptTypes(
-    readFileSync(join(__dirname, '..', 'shooter.ts'), 'utf8'),
+    ['pathing.ts', 'shooter.ts'].map(name => readFileSync(join(__dirname, '..', name), 'utf8')).join('\n'),
     { mode: 'transform' }
 )
 
-function createGame() {
+function createGame(modifyLevel) {
     let now = 0
     let score = 0
     let life = 0
     let result
+    let message
     let nextKind = 10
     let edge = 0
     const all = []
@@ -26,11 +27,16 @@ function createGame() {
     const pendingDestruction = []
     const kinds = { Player: 0, Enemy: 1, Projectile: 2, create: () => nextKind++ }
     const button = { pressed: false, isPressed() { return this.pressed } }
+    const level = require('./tilemap-fixture.cjs')()
+    if (modifyLevel) modifyLevel(level)
     const context = vm.createContext({
-        Math,
+        Math: Object.assign(Object.create(Math), { idiv: (a, b) => Math.trunc(a / b) }),
+        tiles: level.tiles,
+        tilemap: () => level.map,
+        SpriteFlag: { DestroyOnWall: 1 },
         img: () => ({}),
         SpriteKind: kinds,
-        randint: (min, max) => min === 0 && max === 3 ? edge : Math.floor((min + max) / 2),
+        randint: (min, max) => Math.min(max, min + edge),
         scene: { setBackgroundColor() {}, screenWidth: () => 160, screenHeight: () => 120 },
         controller: { A: button, moveSprite() {} },
         info: {
@@ -42,8 +48,10 @@ function createGame() {
         },
         game: {
             runtime: () => now,
+            currentScene: () => ({ tileMap: level.map }),
             onUpdate: handler => updates.push(handler),
-            over: won => { result = won }
+            over: won => { result = won },
+            splash: value => { message = value }
         },
         sprites: {
             create: (_, kind) => makeSprite(kind),
@@ -66,6 +74,7 @@ function createGame() {
             vx: 0, vy: 0, dead: false, collisionKind: kind,
             kind: () => kind,
             setKind: value => { kind = value },
+            setFlag(flag, value) { this.flags = { ...this.flags, [flag]: value } },
             setPosition(x, y) { this.x = x; this.y = y },
             setStayInScreen(value) { this.stayInScreen = value },
             follow(target, speed) { this.target = target; this.speed = speed },
@@ -82,9 +91,11 @@ function createGame() {
 
     return {
         api: context.shooter, kinds, button, all,
+        runMain(main) { vm.runInContext(main, context) },
         get score() { return score },
         get life() { return life },
         get result() { return result },
+        get message() { return message },
         get player() { return all.find(s => s.kind() === kinds.Player) },
         enemies: () => all.filter(s => s.kind() === kinds.Enemy && !s.dead),
         shots: () => all.filter(s => s.kind() === kinds.Projectile && !s.dead),
@@ -118,13 +129,36 @@ test('startup is idempotent and uses the default life, score and position', () =
     assert.equal(g.all.length, 1)
     assert.equal(g.life, 5)
     assert.equal(g.score, 0)
-    assert.deepEqual([g.player.x, g.player.y, g.player.stayInScreen], [80, 60, true])
+    assert.deepEqual([g.player.x, g.player.y, g.player.stayInScreen], [72, 56, true])
+})
+
+test('startup relocates to floor when the original start is blocked', () => {
+    const g = createGame(level => { level.walls[3 * level.width + 4] = true })
+    g.api.startGame()
+    assert.deepEqual([g.player.x, g.player.y], [88, 56])
+})
+
+test('a completely solid level reports missing floor and ends safely', () => {
+    const g = createGame(level => level.walls.fill(true))
+    g.api.startGame()
+    assert.match(g.message, /walkable floor/)
+    assert.equal(g.result, false)
+})
+
+test('spawns skip disconnected or unsafe entries', () => {
+    const g = createGame(level => {
+        level.walls.fill(true)
+        level.walls[3 * level.width + 4] = false
+    })
+    g.api.startGame()
+    g.tick(1000)
+    assert.equal(g.enemies().length, 0)
 })
 
 test('the project manifest packages a Blocks companion and all required sources', () => {
     const root = join(__dirname, '..')
     const manifest = JSON.parse(readFileSync(join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts', 'main.blocks', 'shooter.ts']) {
+    for (const name of ['main.ts', 'main.blocks', 'shooter.ts', 'pathing.ts', 'tilemap.g.ts', 'tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name), `${name} must survive project export`)
         assert.ok(readFileSync(join(root, name), 'utf8').length > 0)
     }
@@ -137,7 +171,7 @@ test('the project manifest packages a Blocks companion and all required sources'
 test('the actual learner entry point starts successfully', () => {
     const g = createGame()
     const main = readFileSync(join(__dirname, '..', 'main.ts'), 'utf8')
-    vm.runInNewContext(main, { shooter: g.api })
+    g.runMain(main)
     assert.equal(g.life, 5)
     assert.equal(g.all.length, 1)
 })
@@ -150,6 +184,7 @@ test('held fire respects cooldown; aim follows movement and persists at rest', (
     g.tick(249)
     assert.equal(g.shots().length, 1)
     assert.equal(g.shots()[0].vx, 120)
+    assert.equal(g.shots()[0].flags[1], true, 'Projectiles destroy on wall impact')
     g.player.vy = -70
     g.tick(250)
     g.player.vy = 0
@@ -161,7 +196,7 @@ test('held fire respects cooldown; aim follows movement and persists at rest', (
     assert.equal(g.shots().length, 3)
 })
 
-test('spawns use all four edges, follow the player, and cap at six', () => {
+test('spawns use reachable floor away from the player and cap at six', () => {
     const g = createGame()
     g.api.startGame()
     g.tick(999)
@@ -172,11 +207,13 @@ test('spawns use all four edges, follow the player, and cap at six', () => {
     }
     const enemies = g.enemies()
     assert.equal(enemies.length, 6)
-    assert.equal(enemies[0].x, 5)
-    assert.equal(enemies[1].x, 155)
-    assert.equal(enemies[2].y, 20)
-    assert.equal(enemies[3].y, 115)
-    assert.ok(enemies.every(e => e.target === g.player && e.speed === 20))
+    const level = require('./tilemap-fixture.cjs')()
+    for (const enemy of enemies) {
+        const column = Math.floor(enemy.x / level.size), row = Math.floor(enemy.y / level.size)
+        assert.ok(!level.walls[row * level.width + column])
+        assert.ok(Math.hypot(enemy.x - g.player.x, enemy.y - g.player.y) >= 40)
+        assert.ok(Math.hypot(enemy.vx, enemy.vy) <= 20)
+    }
 })
 
 test('three default hits defeat an enemy exactly once, even before destruction callbacks', () => {
@@ -239,7 +276,7 @@ test('settings clamp minima and cannot change after startup', () => {
     assert.equal(g.shots().length, 2)
     g.tick(1000)
     const enemy = g.enemies()[0]
-    assert.equal(enemy.speed, 1)
+    assert.ok(Math.hypot(enemy.vx, enemy.vy) <= 1)
     g.overlap(first, enemy)
     assert.equal(g.score, 1)
     g.tick(1250)

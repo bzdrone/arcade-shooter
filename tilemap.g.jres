@@ -1,0 +1,49 @@
+{
+    "transparency16": {
+        "data": "hwQQABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true
+    },
+    "yardFloor": {
+        "data": "hwQQABAAAADMzMzMzMzM/8zMzMzMzMz/zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzA==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true,
+        "displayName": "yardFloor0"
+    },
+    "yardWall": {
+        "data": "hwQQABAAAAC7u7u7u7u7u7u7u7u7u7u7uxHMzMzM/7u7EczMzMz/u7sRzMzMzP+7uxHMzMzM/7u7EczMzMz/u7sRzMzMzP+7uxHMzMzM/7u7EczMzMz/u7sRzMzMzP+7uxHMzMzM/7u7EczMzMz/u7sRzMzMzP+7u7u7u7u7u7u7u7u7u7u7uw==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true,
+        "displayName": "yardWall0"
+    },
+    "yardCover": {
+        "data": "hwQQABAAAABERERERERE7kRERERERETuRO7u7u7u7u5E7u7u7u7u7kTuRERERO7uRO5ERERE7u5E7kTu7kTu7kTuRO7uRO7uRO5E7u5E7u5E7kTu7kTu7kTuRERERO7uRO5ERERE7u5E7u7u7u7u7kTu7u7u7u7uRERERERERO5ERERERERE7g==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true,
+        "displayName": "yardCover0"
+    },
+    "yardLane": {
+        "data": "hwQQABAAAADMzMzMzMzM/8zMzMzMzMz/zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzLvMzMzMzMzMu8zMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzA==",
+        "mimeType": "image/x-mkcd-f4",
+        "tilemapTile": true,
+        "displayName": "yardLane0"
+    },
+    "trainingYard1": {
+        "id": "trainingYard1",
+        "mimeType": "application/mkcd-tilemap",
+        "data": "MTAwYTAwMDcwMDAyMDIwMjAyMDIwMjAyMDIwMjAyMDIwMTAxMDEwNDA0MDEwMTAxMDIwMjAxMDEwMzA0MDQwMTAxMDEwMjAyMDEwMTAzMDQwNDAzMDEwMTAyMDIwMTAxMDEwNDA0MDMwMTAxMDIwMjAxMDEwMTA0MDQwMTAxMDEwMjAyMDIwMjAyMDIwMjAyMDIwMjAyMjIyMjIyMjIyMjAyMDAwMDAwMjAwMjIwMDAwMDIwMDIyMDAwMDIyMDAyMDAwMDAyMjAwMjAwMDAwMDIwMjIyMjIyMjIyMg==",
+        "tileset": [
+            "myTiles.transparency16",
+            "myTiles.yardFloor",
+            "myTiles.yardWall",
+            "myTiles.yardCover",
+            "myTiles.yardLane"
+        ],
+        "displayName": "trainingYard"
+    },
+    "*": {
+        "mimeType": "image/x-mkcd-f4",
+        "dataEncoding": "base64",
+        "namespace": "myTiles"
+    }
+}

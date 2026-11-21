@@ -7,12 +7,12 @@ Run these checks in MakeCode Arcade before calling the starter verified. This ch
 With Node.js 22.13+ installed, run from the repository root:
 
 ```sh
-node --test tests/gameplay.test.cjs
+node --test tests/gameplay.test.cjs tests/pathing.test.cjs
 ```
 
 No npm packages are required. The tests transform TypeScript using Node's built-in transformer and run it against a minimal mocked Arcade API. Node may emit an experimental-transformer warning.
 
-These checks cover startup (including main.ts), firing cadence and retained aim, spawn edges and cap, health and scoring, contact, settings clamps, victory, and enemy cleanup. Collision tests deliberately delay destruction callbacks and replay stale overlap callbacks to check that a shot is consumed once and an enemy cannot award score or contact damage twice.
+These checks cover startup (including main.ts), firing cadence and retained aim, safe floor spawns and cap, health and scoring, contact, settings clamps, victory, and enemy cleanup. Pathing checks decode the committed tilemap resource, verify connected walkable floor, exercise both cover barriers in both directions, check 8×8 footprints for corner clipping, and test moving targets, blocked goals, unreachable areas and reopened passages. Collision tests deliberately delay destruction callbacks and replay stale overlap callbacks to check that a shot is consumed once and an enemy cannot award score or contact damage twice.
 
 The mocks do **not** validate PXT compatibility, physics, sprite lifetime/off-screen cleanup, rendering, input, automatic zero-life game over, restart, Blocks, or PNG packaging. Passing them is not simulator verification.
 
@@ -65,13 +65,15 @@ Checks include simulator startup, right/up movement, retained aim, held/released
 
 Screenshots and a JSON result are written to ignored `local/editor-smoke/`. Screenshots are evidence only, **not project PNG artifacts**. These smoke checks do not cover the complete gameplay checklist, automatic loss, victory, restart, physical controls, lesson variants, or PNG export/import. A successful Blocks round trip must also preserve shooter.ts as a separate project file during final artifact validation.
 
+For the training-yard checks, run `node tests/editor-smoke.cjs --arena`. This uses controlled placements of existing actors in the real simulator to check player wall collision, shot destruction on cover, and bots detouring around each barrier. It also opens the tilemap thumbnail, verifies the level editor and wall controls appear, and closes with Done. `--tilemap` runs just that editor-opening check in addition to the baseline smoke checks. Evidence is written alongside the other screenshots; `result.json` records which optional checks ran.
+
 ## Repeatable project-PNG export/import
 
 With the same local toolchain and browser setup:
 
 ```sh
-node tests/editor-smoke.cjs --png
-node tests/png-hosted.cjs
+node tests/editor-smoke.cjs --arena --png
+node tests/png-hosted.cjs --tilemap
 ```
 
 The first command exports the **baseline before test edits**, using Arcade's simulator-camera action. Although its tooltip says "Take Screenshot", this target's `saveAsPNG` setting routes that action through the official `saveProjectAsPNGAsync` exporter, embedding compressed project source. The script asserts that setting, decodes the resulting PNG using PXT, and compares every manifest-listed source file to the baseline. It does not construct a substitute PNG or re-encode the exported bytes.
@@ -84,11 +86,15 @@ These checks need internet access. Exporting again may change image pixels and P
 
 ## Compilation and simulator
 
-- Import both TypeScript files with the Arcade target; check for compile errors.
+- Import all manifest-listed source and asset files with the Arcade target; check for compile errors.
 - Confirm direction controls move the player and screen boundaries contain it.
 - Hold A: shots fire repeatedly with the configured interval, aiming along the last movement axis.
 - Release A: firing stops. Remaining projectiles disappear.
-- Enemies spawn from the edges, follow the player, and never exceed six live enemies.
+- Enemies spawn on reachable inner-perimeter floor, at least 40 pixels from the player, and never exceed six live enemies.
+- The level fits on screen without scrolling. Perimeter and cover stop the player; projectiles disappear on wall impact.
+- Bots route around both barriers from either side without clipping corners or sticking to walls. Move around a corner mid-chase and verify pursuit adapts.
+- Close a passage in the level editor: bots must respect the new wall markings. An unreachable bot stops; reopening a passage permits routing again.
+- Block the original player start: startup chooses the nearest floor tile. A completely solid map reports the missing floor instead of starting in a wall.
 - With defaults, enemies require three hits; each defeated enemy adds one point.
 - Enemy contact removes that enemy and costs one life, without scoring a kill.
 - A shot touching overlapping enemies damages only one. Defeated/contacted enemies cannot award duplicate score or contact damage within the same frame.
@@ -106,7 +112,8 @@ These checks need internet access. Exporting again may change image pixels and P
 
 - Export using Arcade's project-PNG facility, not a screenshot or ordinary image export.
 - Import the exported PNG into a fresh editor project without access to this repository.
-- Confirm main.ts, main.blocks, shooter.ts, and the required project configuration survive import.
+- Confirm main.ts, main.blocks, shooter.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
+- Open the tilemap thumbnail in Blocks and verify the level editor and wall tool work on the imported artifact.
 - Repeat gameplay and Blocks checks against the imported artifact.
 - Make a settings change after import and verify its effect after restart.
 - Test the exact file intended for distribution; do not substitute a re-encoded image.

@@ -6,7 +6,7 @@ const path = require('node:path')
 const { createHash } = require('node:crypto')
 const puppeteer = require('../../pxt-arcade/node_modules/puppeteer')
 const root = path.resolve(__dirname, '..')
-const file = path.resolve(process.argv[2] || path.join(root, 'local/exports/arcade-shooter.png'))
+const file = path.resolve(process.argv.slice(2).find(arg => !arg.startsWith('--')) || path.join(root, 'local/exports/arcade-shooter.png'))
 const evidence = path.join(root, 'local/editor-smoke')
 
 async function main() {
@@ -54,10 +54,22 @@ async function main() {
         assert.equal(blocks.category, true)
         for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)))
+        if (process.argv.includes('--tilemap')) {
+            await page.evaluate(() => {
+                const B = pxt.blocks.requireBlockly?.() || Blockly
+                const workspace = B.common?.getMainWorkspace?.() || B.getMainWorkspace()
+                workspace.getAllBlocks(false).find(b => b.type === 'tiles_tilemap_editor').getField('tilemap').showEditor_()
+            })
+            await page.waitForFunction(() => document.querySelector('.image-editor') && document.body.innerText.includes('Show walls'), { timeout: 10000 })
+            await page.screenshot({ path: path.join(evidence, 'hosted-tilemap.png') })
+            await page.click('[title="Done"]')
+            console.log('PASS: imported PNG tilemap opens in the hosted level editor with wall controls')
+        }
         assert.deepEqual(errors, [])
         await page.screenshot({ path: path.join(evidence, 'hosted-blocks.png') })
         const result = { file, sha256: createHash('sha256').update(bytes).digest('hex'), versions,
             checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', 'Simulator startup', 'Shooter category and three custom blocks, no grey JavaScript'],
+            tilemapEditor: process.argv.includes('--tilemap'),
             limitations: 'Not full gameplay, physical keyboard, lesson, or hosted settings-change validation.' }
         fs.writeFileSync(path.join(evidence, 'hosted-result.json'), JSON.stringify(result, null, 2))
         console.log(`PASS: PNG import, simulator startup and Blocks on hosted Arcade ${versions.target} / PXT ${versions.pxt}`)

@@ -168,10 +168,74 @@ async function main() {
         const stillAtBoundary = await snapshot()
         await button(3, false)
         // Arcade bounds the hitbox, not necessarily the full image rectangle.
-        assert.ok(boundary.x >= 148 && boundary.x <= 154, `Right boundary: ${JSON.stringify(boundary)}`)
+        assert.ok(boundary.x >= 132 && boundary.x <= 138, `Right boundary: ${JSON.stringify(boundary)}`)
         assert.equal(stillAtBoundary.x, boundary.x, 'Continued input cannot move beyond the boundary')
         await page.screenshot({ path: path.join(artifacts, 'simulator.png') })
         console.log('PASS: simulator startup, directional movement, retained aim, held/released fire, spawn and right boundary')
+
+        if (process.argv.includes('--arena')) {
+            await command('restartsimulator')
+            await sleep(300)
+            await sim.evaluate(() => {
+                const g = pxsim.runtime.globals
+                const player = g[Object.keys(g).find(k => k.startsWith('player___'))]
+                player.fields._x = 20 * 256
+                player.fields._y = 52 * 256
+                player.fields._lastX = player.fields._x
+                player.fields._lastY = player.fields._y
+            })
+            await button(3, true)
+            await sleep(500)
+            await button(3, false)
+            const blocked = await snapshot()
+            assert.ok(blocked.x >= 39 && blocked.x <= 41, 'Cover stops player movement')
+            await button(5, true)
+            await sleep(600)
+            await button(5, false)
+            await sleep(100)
+            const shotsAtWall = await sim.evaluate(() => {
+                const g = pxsim.runtime.globals
+                const scene = g[Object.keys(g).find(k => k.startsWith('_scene___'))]
+                return scene.fields.allSprites.data.filter(s => s.fields._kind === 1).length
+            })
+            assert.ok((await snapshot()).nextShotAt > 0, 'Shots were fired toward cover')
+            assert.equal(shotsAtWall, 0, 'Cover destroys shots before their lifespan expires')
+            console.log('PASS: real simulator cover blocks player and destroys projectiles')
+            // Place existing actors in controlled real-physics scenarios. No game source edits.
+            for (const scenario of [
+                { name: 'left cover', bot: [24, 56], player: [72, 56], beyondX: 68, direction: 1, top: 28, bottom: 68 },
+                { name: 'right cover', bot: [136, 72], player: [88, 72], beyondX: 92, direction: -1, top: 44, bottom: 84 }
+            ]) {
+                await command('restartsimulator')
+                await sim.waitForFunction(() => {
+                    const g = pxsim.runtime?.globals || {}
+                    const enemies = g[Object.keys(g).find(k => k.startsWith('enemies___'))]
+                    return enemies?.data.length > 0
+                }, { timeout: 10000 })
+                await sim.evaluate(scenario => {
+                    const g = pxsim.runtime.globals
+                    const get = name => g[Object.keys(g).find(k => k.startsWith(name + '___'))]
+                    const player = get('player'), enemy = get('enemies').data[0]
+                    window.arenaBot = enemy
+                    window.arenaDetoured = false
+                    for (const [sprite, point] of [[player, scenario.player], [enemy, scenario.bot]]) {
+                        sprite.fields._x = (point[0] - 4) * 256
+                        sprite.fields._y = (point[1] - 4) * 256
+                        sprite.fields._lastX = sprite.fields._x
+                        sprite.fields._lastY = sprite.fields._y
+                    }
+                }, scenario)
+                await sim.waitForFunction(({ beyondX, direction, top, bottom }) => {
+                    const x = window.arenaBot.fields._x / 256 + 4
+                    const y = window.arenaBot.fields._y / 256 + 4
+                    if (y <= top + 0.5 || y >= bottom - 0.5) window.arenaDetoured = true
+                    return direction > 0 ? x > beyondX : x < beyondX
+                }, { timeout: 12000 }, scenario)
+                assert.equal(await sim.evaluate(() => window.arenaDetoured), true, 'Bot went around, not through, the barrier')
+                console.log(`PASS: real simulator bot routes around ${scenario.name}`)
+            }
+            await page.screenshot({ path: path.join(artifacts, 'arena-pathing.png') })
+        }
 
         // Force TS decompilation with a non-default value; do not merely load cached XML.
         await editor.evaluate(() => {
@@ -197,6 +261,17 @@ async function main() {
         for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)), 'No grey JavaScript blocks')
         await page.screenshot({ path: path.join(artifacts, 'blocks.png') })
+        assert.ok(blocks.types.includes('set_current_tilemap'), 'Level setup stays Blocks-friendly')
+        if (process.argv.includes('--arena') || process.argv.includes('--tilemap')) {
+            await editor.evaluate(() => {
+                const workspace = pxt.blocks.requireBlockly().common.getMainWorkspace()
+                workspace.getAllBlocks(false).find(b => b.type === 'tiles_tilemap_editor').getField('tilemap').showEditor_()
+            })
+            await editor.waitForFunction(() => document.querySelector('.image-editor') && document.body.innerText.includes('Show walls'), { timeout: 10000 })
+            await page.screenshot({ path: path.join(artifacts, 'tilemap-editor.png') })
+            await editor.click('[title="Done"]')
+            console.log('PASS: tilemap thumbnail opens the level editor with wall controls')
+        }
         await sleep(500)
         await command('switchjavascript')
         await editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setWeapon\(4,\s*250,\s*120\)/.test(m.getValue())), { timeout: 30000 })
@@ -262,7 +337,9 @@ async function main() {
         assert.deepEqual(pageErrors, [], 'No uncaught browser errors')
         fs.writeFileSync(path.join(artifacts, 'result.json'), JSON.stringify({
             simulator: { start, moved, aimed, firing, released, boundary }, blocks, roundTrip,
-            limitations: 'Synthetic controller input; not a complete gameplay, keyboard, restart, win/lose, or PNG-delivery test. Browser uses the hosted simulator iframe.'
+            arenaChecks: process.argv.includes('--arena'),
+            tilemapEditor: process.argv.includes('--arena') || process.argv.includes('--tilemap'),
+            limitations: 'Synthetic controller input and controlled actor placement for arena checks; not a complete gameplay, keyboard, or win/lose test. Browser uses the hosted simulator iframe.'
         }, null, 2))
         console.log('PASS: Shooter category, TS → Blocks → TS with edited arguments, no grey blocks')
         console.log('Screenshots and result JSON: local/editor-smoke/')
