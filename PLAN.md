@@ -33,7 +33,9 @@ The first learning activity changes weapon damage, fire interval, and projectile
 - With user approval, cloned microsoft/pxt-arcade to the sibling `~/Source/pxt-arcade` directory and installed its npm dependencies (no global CLI installation).
 - Added main.blocks to the manifest after the real editor exposed that the original project was TypeScript-only (no Blocks tab and switch-to-Blocks was a no-op). The companion contains the baseline settings; shooter.ts remains separate.
 - Added repeatable real-editor smoke checks using the toolchain's existing Puppeteer dependency, a loopback-only server, disposable profile, and memory workspace. Results/screenshots are ignored under local/editor-smoke/.
-- Next: complete gameplay checks (health/scoring, win/lose, restart, physical controls and lesson variants), then validate the exported project PNG in a fresh project. Local CLI setup and limitations are recorded in VALIDATION.md.
+- Reordered the next milestone at the user's request: export and validate the project PNG first so manual playtesting does not require assembling sources.
+- Added optional PNG export/import to editor-smoke.cjs and a separate hosted-editor import check. No gameplay or default settings changed.
+- Next: user playtest from the PNG, followed by remaining gameplay checks (health/scoring, win/lose, restart, physical controls and lesson variants). Local CLI setup and limitations are recorded in VALIDATION.md.
 
 ## Validation status
 
@@ -42,7 +44,16 @@ The first learning activity changes weapon damage, fire interval, and projectile
 - Arcade project compilation passed with target 4.2.1 / PXT 13.2.13 on Node.js 24.22.3, using target checkout `0642e6159d3fdb652fb1465a0aff73c5b8188578`. `pxt install` and `pxt build` exited successfully and generated `built/debug/binary.js`. This is simulator-target code generation, not a hardware build or playtest.
 - Toolchain caveats: the target `buildtarget --skipCore` command exited successfully but logged upstream browser-events typing errors and tutorial-cache missing-dependency errors. npm reported 24 vulnerabilities (4 low, 5 moderate, 15 high); no audit fixes or upstream source patches were applied.
 - Real-editor smoke checks passed using Chrome 157: simulator startup, right/up movement, retained aim, held/released fire, enemy spawning, and right-boundary containment using synthetic simulator controller input. This is not full manual playtesting. The local editor currently uses the hosted Arcade simulator iframe, not a wholly offline simulator build.
-- Blocks smoke checks passed: Shooter category and all three custom blocks appear; no grey JavaScript blocks; a non-default TypeScript argument decompiles to Blocks and a subsequent Blocks edit appears in regenerated main.ts. Final file preservation and artifact-based round trips remain unverified.
-- A project PNG has not been exported or tested.
+- Blocks smoke checks passed: Shooter category and all three custom blocks appear; no grey JavaScript blocks; a non-default TypeScript argument decompiles to Blocks and a subsequent Blocks edit appears in regenerated main.ts.
+- Project PNG exported through the local Arcade editor's project-PNG path and decoded to verify exact baseline main.ts, main.blocks, and shooter.ts plus their manifest entries. A fresh browser context imported only that PNG, started the game, round-tripped a Blocks damage change, and confirmed runtime damage became 3 after stop/start compilation. Fast restart alone can reuse old code.
+- The exact PNG also imported and started in the hosted stable editor (Arcade 4.1.28 / PXT 13.1.25); Shooter blocks appeared without grey JavaScript. Full gameplay, physical controls and lesson validation remain outstanding.
+
+## Current playtest artifact
+
+- File: `local/exports/arcade-shooter.png` (21,701 bytes; ignored local output, not committed or published).
+- SHA-256: `6ce38473dc6bcaa5be9ac039e8fed5043da197fca45032a40a8a86451008c030`.
+- Exported baseline settings: weapon `(1, 250, 120)`, enemies `(3, 20, 1500)`.
+- Evidence: `local/exports/validation.json`, `local/editor-smoke/hosted-result.json`, and screenshots under `local/editor-smoke/`.
+- Import instructions: README.md, "Test an exported project PNG". Learners need only the PNG and hosted editor, not these authoring files. The PNG does not include the lesson drafts.
 
 Update this status with evidence as the steps are completed; static checks are not a substitute for target compilation or playtesting.

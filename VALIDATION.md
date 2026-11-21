@@ -65,6 +65,23 @@ Checks include simulator startup, right/up movement, retained aim, held/released
 
 Screenshots and a JSON result are written to ignored `local/editor-smoke/`. Screenshots are evidence only, **not project PNG artifacts**. These smoke checks do not cover the complete gameplay checklist, automatic loss, victory, restart, physical controls, lesson variants, or PNG export/import. A successful Blocks round trip must also preserve shooter.ts as a separate project file during final artifact validation.
 
+## Repeatable project-PNG export/import
+
+With the same local toolchain and browser setup:
+
+```sh
+node tests/editor-smoke.cjs --png
+node tests/png-hosted.cjs
+```
+
+The first command exports the **baseline before test edits**, using Arcade's simulator-camera action. Although its tooltip says "Take Screenshot", this target's `saveAsPNG` setting routes that action through the official `saveProjectAsPNGAsync` exporter, embedding compressed project source. The script asserts that setting, decodes the resulting PNG using PXT, and compares every manifest-listed source file to the baseline. It does not construct a substitute PNG or re-encode the exported bytes.
+
+The original downloaded bytes are copied to ignored `local/exports/arcade-shooter.png`. A fresh isolated browser context receives only that file through the editor's drag/drop importer. It checks baseline startup, custom Blocks, and a damage edit that round-trips and takes effect after stop/start compilation. `local/exports/validation.json` records the checksum and checks. Changing settings in the test does not modify the exported baseline.
+
+The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, presses Play if needed, and checks simulator startup and the three custom Blocks without grey JavaScript. It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
+
+These checks need internet access. Exporting again may change image pixels and PNG bytes; revalidate and record the checksum of the exact file handed to a tester. Files under `local/editor-smoke/` are ordinary evidence screenshots, not project artifacts. Full gameplay and physical-control testing remain separate.
+
 ## Compilation and simulator
 
 - Import both TypeScript files with the Arcade target; check for compile errors.
@@ -79,7 +96,7 @@ Screenshots and a JSON result are written to ignored `local/editor-smoke/`. Scre
 
 ## Customization and Blocks
 
-- Change each setting independently and verify its effect after restart.
+- Change each setting independently and verify its effect after stopping and starting the simulator (forces compilation). Fast restart can reuse previously compiled code.
 - Verify the Shooter category contains weapon settings, enemy settings, and start shooter.
 - Switch main.ts to Blocks and back: calls and argument values should survive without grey JavaScript blocks.
 - Confirm shooter.ts remains a separate implementation file and is not inlined into main.ts.

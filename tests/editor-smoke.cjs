@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { spawn } = require('node:child_process')
+const { createHash } = require('node:crypto')
 const puppeteer = require('../../pxt-arcade/node_modules/puppeteer')
 const root = path.resolve(__dirname, '..')
 const target = path.resolve(root, '../pxt-arcade')
@@ -39,23 +40,27 @@ async function main() {
             executablePath: process.env.ARCADE_BROWSER || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
             headless: true, args: ['--mute-audio'], defaultViewport: { width: 1500, height: 1000 }
         })
-        const page = await browser.newPage()
         const pageErrors = []
-        page.on('pageerror', error => pageErrors.push(error.message))
-        await page.setRequestInterception(true)
-        page.on('request', request => request.url() === `${origin}/validation-host`
-            ? request.respond({ status: 200, contentType: 'text/html', body:
-                '<html style="height:100%"><body style="margin:0;height:100%"><iframe id="editor" style="width:100%;height:100%;border:0"></iframe></body></html>' })
-            : request.continue())
-        await page.goto(`${origin}/validation-host`)
-        // Memory workspace avoids controller mode waiting for a parent storage provider.
-        await page.evaluate(url => { document.querySelector('iframe').src = url },
-            `${origin}/index.html?controller=1&ws=mem#local_token=${token}&wsport=${wsport}`)
-        const editor = await (await page.$('#editor')).contentFrame()
-        await editor.waitForFunction(() => typeof pxt !== 'undefined' && document.body.innerText.includes('Download'), { timeout: 60000 })
+        async function openEditor(context) {
+            const page = await context.newPage()
+            page.on('pageerror', error => pageErrors.push(error.message))
+            await page.setRequestInterception(true)
+            page.on('request', request => request.url() === `${origin}/validation-host`
+                ? request.respond({ status: 200, contentType: 'text/html', body:
+                    '<html style="height:100%"><body style="margin:0;height:100%"><iframe id="editor" style="width:100%;height:100%;border:0"></iframe></body></html>' })
+                : request.continue())
+            await page.goto(`${origin}/validation-host`)
+            // Memory workspace avoids controller mode waiting for a parent storage provider.
+            await page.evaluate(url => { document.querySelector('iframe').src = url },
+                `${origin}/index.html?controller=1&ws=mem#local_token=${token}&wsport=${wsport}`)
+            const editor = await (await page.$('#editor')).contentFrame()
+            await editor.waitForFunction(() => typeof pxt !== 'undefined' && document.body.innerText.includes('Download'), { timeout: 60000 })
+            return { page, editor }
+        }
+        const { page, editor } = await openEditor(browser)
 
-        async function command(action, args = {}) {
-            const response = await page.evaluate(({ action, args, origin }) => new Promise((resolve, reject) => {
+        async function command(action, args = {}, host = page) {
+            const response = await host.evaluate(({ action, args, origin }) => new Promise((resolve, reject) => {
                 const id = crypto.randomUUID()
                 const timer = setTimeout(() => {
                     window.removeEventListener('message', handler)
@@ -80,8 +85,7 @@ async function main() {
         await editor.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts')), { timeout: 30000 })
         await command('restartsimulator')
         await sleep(1000)
-        const sim = page.frames().find(frame => frame.url().includes('---simulator'))
-        assert.ok(sim, 'Simulator iframe exists')
+        const sim = await page.waitForFrame(frame => frame.url().includes('---simulator'), { timeout: 30000 })
         await sim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 })
         async function snapshot() {
             return sim.evaluate(() => {
@@ -95,6 +99,42 @@ async function main() {
         }
         async function button(key, down) {
             await sim.evaluate(({ key, down }) => pxsim.runtime.board.handleKeyEvent(key, down), { key, down })
+        }
+        let projectPNG
+        if (process.argv.includes('--png')) {
+            const downloadDir = fs.mkdtempSync(path.join(artifacts, 'download-'))
+            const cdp = await page.createCDPSession()
+            await cdp.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadDir })
+            assert.equal(await editor.evaluate(() => pxt.appTarget.compile.saveAsPNG), true,
+                'The simulator camera must export a project PNG, not an ordinary screenshot')
+            // Arcade's camera invokes downloadScreenshotAsync → saveProjectAsPNGAsync
+            // for saveAsPNG targets, embedding the complete project via the editor exporter.
+            await editor.click('.screenshot-button')
+            const deadline = Date.now() + 30000
+            let downloaded
+            while (!downloaded && Date.now() < deadline) {
+                downloaded = fs.readdirSync(downloadDir).find(name => name.endsWith('.png'))
+                if (!downloaded) await sleep(200)
+            }
+            assert.ok(downloaded, 'Arcade exported a PNG download')
+            const bytes = fs.readFileSync(path.join(downloadDir, downloaded))
+            assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
+            const files = await editor.evaluate(async base64 => {
+                const blob = await pxt.Util.decodeBlobAsync(`data:image/png;base64,${base64}`)
+                const json = blob[0] === 123 ? pxt.Util.uint8ArrayToString(blob) : await pxt.lzmaDecompressAsync(blob)
+                return JSON.parse(JSON.parse(json).source)
+            }, bytes.toString('base64'))
+            const exportedManifest = JSON.parse(files['pxt.json'])
+            for (const name of manifest.files) {
+                assert.ok(exportedManifest.files.includes(name), `Export manifest contains ${name}`)
+                assert.equal(files[name].replace(/\r\n/g, '\n'), text[name].replace(/\r\n/g, '\n'), `Baseline ${name} survives export`)
+            }
+            const outputDir = path.join(root, 'local/exports')
+            fs.mkdirSync(outputDir, { recursive: true })
+            const output = path.join(outputDir, 'arcade-shooter.png')
+            fs.copyFileSync(path.join(downloadDir, downloaded), output)
+            projectPNG = { output, bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
+            console.log(`EXPORTED: ${output}`)
         }
         const start = await snapshot()
         assert.equal(start.dead, false)
@@ -164,6 +204,61 @@ async function main() {
         assert.match(roundTrip, /setEnemies\(3,\s*20,\s*1500\)/)
         assert.match(roundTrip, /shooter.startGame\(\)/)
         assert.ok(!roundTrip.includes('namespace shooter'), 'Implementation is not inlined into main.ts')
+        if (projectPNG) {
+            // Independent storage/profile context, receiving only the exact exported PNG.
+            const fresh = await browser.createBrowserContext()
+            try {
+                const imported = await openEditor(fresh)
+                await imported.editor.evaluate(base64 => {
+                    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+                    const transfer = new DataTransfer()
+                    transfer.items.add(new File([bytes], 'arcade-shooter.png', { type: 'image/png' }))
+                    document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }))
+                }, projectPNG.bytes.toString('base64'))
+                await imported.editor.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.startGame()')), { timeout: 30000 })
+                const main = await imported.editor.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
+                assert.equal(main.replace(/\r\n/g, '\n'), text['main.ts'].replace(/\r\n/g, '\n'))
+                await command('restartsimulator', {}, imported.page)
+                await sleep(1000)
+                const importedSim = await imported.page.waitForFrame(f => f.url().includes('---simulator'), { timeout: 30000 })
+                await importedSim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 })
+                assert.equal(await importedSim.evaluate(() => {
+                    const g = pxsim.runtime.globals
+                    return g[Object.keys(g).find(k => k.startsWith('weaponDamage___'))]
+                }), 1)
+                await command('switchblocks', {}, imported.page)
+                await imported.editor.waitForFunction(() => document.querySelector('.blocklySvg') && /start\s+shooter/.test(document.body.innerText), { timeout: 30000 })
+                const types = await imported.editor.evaluate(() => {
+                    const workspace = pxt.blocks.requireBlockly().common.getMainWorkspace()
+                    const all = workspace.getAllBlocks(false)
+                    all.find(b => b.type === 'shooter_set_weapon').getInputTargetBlock('damage').setFieldValue('3', 'NUM')
+                    return all.map(b => b.type)
+                })
+                for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game']) assert.ok(types.includes(type))
+                assert.ok(!types.some(type => /typescript|javascript/.test(type)))
+                await sleep(500)
+                await command('switchjavascript', {}, imported.page)
+                await imported.editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setWeapon\(3,\s*250,\s*120\)/.test(m.getValue())), { timeout: 30000 })
+                // Fast restart reuses compiled code. Stop/start forces compilation of the edit.
+                await command('stopsimulator', {}, imported.page)
+                await command('startsimulator', {}, imported.page)
+                await sleep(1000)
+                await importedSim.waitForFunction(() => {
+                    if (typeof pxsim === 'undefined' || !pxsim.runtime?.running) return false
+                    const g = pxsim.runtime.globals
+                    return g[Object.keys(g).find(k => k.startsWith('weaponDamage___'))] === 3
+                }, { timeout: 30000 })
+                await imported.page.screenshot({ path: path.join(artifacts, 'png-import.png') })
+                const result = { file: path.relative(root, projectPNG.output), sha256: projectPNG.sha256,
+                    bytes: projectPNG.bytes.length, requiredFiles: manifest.files,
+                    checks: ['Embedded baseline sources match', 'Fresh-context PNG drag/drop import', 'Baseline simulator starts',
+                        'Custom Blocks appear without grey JavaScript', 'Blocks edit round-trips and changes runtime damage to 3'],
+                    limitations: 'Full gameplay, physical controls, lesson instructions and hosted-editor import remain unverified.' }
+                fs.writeFileSync(path.join(root, 'local/exports/validation.json'), JSON.stringify(result, null, 2))
+                console.log('PASS: exact project PNG imports in fresh context, runs, and remains editable in Blocks')
+                console.log(`SHA-256: ${projectPNG.sha256}`)
+            } finally { await fresh.close() }
+        }
         assert.deepEqual(pageErrors, [], 'No uncaught browser errors')
         fs.writeFileSync(path.join(artifacts, 'result.json'), JSON.stringify({
             simulator: { start, moved, aimed, firing, released, boundary }, blocks, roundTrip,

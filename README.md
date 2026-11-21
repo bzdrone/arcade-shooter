@@ -18,6 +18,16 @@ Learning activities use a predict → change → test → explain loop. Weapon s
 
 These are transferable shooter concepts, not a universal FPS modding API. The game is a local simulation with no networking or external assets; it does not implement first-person rendering or client/server authority.
 
+## Test an exported project PNG
+
+Open https://arcade.makecode.com/ and drag the **original project PNG file** onto the page, or use **Import → Import File**. Press the simulator's Play button if it does not start automatically. No repository checkout, local server, or source-file assembly is needed.
+
+Move with the arrow keys; use the on-screen **A** button or **Space** to fire (click inside the simulator first). Shots follow the last movement axis, keeping that aim when you stop. In **Blocks**, the Shooter category exposes the weapon and enemy settings. After changing a setting, stop and start the simulator to recompile; fast restart can reuse the previous compiled code.
+
+For a short playtest, try the baseline, then change weapon damage from **1 to 3** and stop/start. Look for understandable aiming, readable sprites and HUD, noticeable weapon changes, and pacing that leaves room to experiment. Report anything confusing or frustrating. The current artifact is a development playtest build, not a fully verified release; lesson Markdown is not embedded.
+
+The author-side export/import command and local artifact location are documented in VALIDATION.md; the exact tested artifact and checksum are recorded in PLAN.md.
+
 ## Authoring
 
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
@@ -39,7 +49,8 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - shooter.ts: game implementation and annotated Blocks API.
 - pxt.json: Arcade project manifest.
 - tests/gameplay.test.cjs: dependency-free host-side logic checks; run with `node --test tests/gameplay.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
-- tests/editor-smoke.cjs: real-editor browser smoke checks using the sibling toolchain; see VALIDATION.md for setup and limitations.
+- tests/editor-smoke.cjs: real-editor browser smoke checks and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
+- tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Development plan](PLAN.md): agreed next steps and development status.
