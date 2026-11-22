@@ -1,8 +1,8 @@
 # Battlefield 6 Portal reference (author notes)
 
-Author-facing notes for designing this project's Portal-shaped `mod` layer. Learners do not need this file. Agreed direction and milestones live in [PLAN.md](PLAN.md); PXT language findings live in [PXT-ARCADE.md](PXT-ARCADE.md).
+Author-facing notes for designing this project's Portal-shaped `mod` layer. Learners do not need this file. Design decisions live in [PLAN.md](PLAN.md); PXT language findings live in [PXT-ARCADE.md](PXT-ARCADE.md).
 
-The `mod` layer is **Portal-shaped, not Portal-compatible**. Arcade is a short ramp: learners get the idea of scripting a game mode with event handlers, functions and per-player variables, then move to Portal. Porting a mode is expected to need a short list of fix-ups (below), not a shared source file or conversion tool.
+The `mod` layer is **Portal-shaped, not Portal-compatible**. Arcade is a short ramp: learners get the idea of scripting a game mode with event handlers, functions and per-player variables, then move to Portal. Porting a mode needs a short list of fix-ups (below), not a shared source file or conversion tool.
 
 ## Sources and versions
 
@@ -51,7 +51,7 @@ Portal's `Weapons` enum lists 67 specific firearms grouped by name prefix (`Side
 
 Portal's full UI is widget-based (`AddUIText` with position, size, anchor, colours, fonts …). `modlib` already wraps the simple cases as `ShowNotificationMessage(msg, target?)`, `ShowEventGameModeMessage(msg, target?)` and `ShowHighlightedGameModeMessage(msg, target?)`, with an optional `Player | Team` target. `ShowEventGameModeMessage` notes that the built-in game-mode message is broken in this SDK and draws a temporary widget for six seconds instead. Arcade keeps everything in `mod` instead: `DisplayNotificationMessage` (a real Portal function) and `DisplayGameModeMessage` (the real name of the broken built-in, so porting switches it to `modlib.ShowEventGameModeMessage`). No widget API is mirrored. Portal message text must come from a strings file (`mod.stringkeys.someKey`) with up to three `{}` placeholders.
 
-## The Arcade `mod` layer (implemented)
+## The Arcade `mod` layer
 
 `mod.ts` implements this subset under Portal's names. Learners see it as the **Mod** Blocks category; `deathmatch.ts` and `gungame.ts` are written with it as worked examples.
 

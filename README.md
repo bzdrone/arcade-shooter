@@ -54,7 +54,7 @@ Move with the arrow keys; use the on-screen **A** button or **Space** to fire (c
 
 For a short playtest, try the baseline, then change weapon damage from **1 to 3** and stop/start. The change applies to every soldier, not only your weapon. Look for understandable aiming, readable teams/HUD, noticeable weapon changes, and pacing that leaves room to experiment. Report anything confusing or frustrating. The current artifact is a development playtest build, not a fully verified release; lesson Markdown is not embedded.
 
-The author-side export/import command and local artifact location are documented in VALIDATION.md; the exact tested artifact and checksum are recorded in PLAN.md.
+The author-side export/import command and local artifact location are documented in VALIDATION.md; the local export's checksum is in `local/exports/validation.json`, and published releases are listed in PLAN.md.
 
 ## Authoring
 
@@ -94,7 +94,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Portal-shaped `mod` layer, and the porting checklist.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
-- [Development plan](PLAN.md): agreed next steps and development status.
+- [Design and open work](PLAN.md): architecture, design decisions, releases and what is not yet verified.
 
 Baseline settings and mode selection apply before startGame(); later settings calls are ignored. **set shooter mode** chooses deathmatch (the baseline), gun game, or no mode; the last selection before startup wins. The older **use deathmatch rules** block still works and selects deathmatch. With no mode, the engine still runs combat and respawns but does not score eliminations or end a match automatically.
 

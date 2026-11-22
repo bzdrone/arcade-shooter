@@ -1,6 +1,6 @@
 # PXT / MakeCode Arcade authoring knowledge
 
-Project-local reference for what we have actually learned. Read this before re-investigating the toolchain, simulator, Blocks, tilemaps, or project PNGs. Keep repeatable commands/checklists in [VALIDATION.md](VALIDATION.md), current work/evidence in [PLAN.md](PLAN.md), and learner usage in [README.md](README.md).
+Project-local reference for what we have actually learned. Read this before re-investigating the toolchain, simulator, Blocks, tilemaps, or project PNGs. Keep repeatable commands/checklists in [VALIDATION.md](VALIDATION.md), design and open work in [PLAN.md](PLAN.md), and learner usage in [README.md](README.md).
 
 These are observations from the versions below, not promises about all MakeCode targets or future releases. Prefer the committed tests and matching upstream sources over undocumented assumptions.
 
@@ -32,7 +32,7 @@ node tests/png-hosted.cjs --tilemap
 git diff --check
 ```
 
-The browser commands depend on the test implementation matching the current game model. Check PLAN.md before assuming they are currently passing.
+The browser commands depend on the test implementation matching the game model; update them alongside gameplay changes.
 
 Initial target setup and `pxt install` are documented in VALIDATION.md. Do not reinstall or clone again just to rediscover commands. A global `pxt` installation is unnecessary: the CLI resolves the sibling target from its installation path. Simulator output is `built/debug/binary.js`; a successful build is not a hardware build, runtime playtest, or Blocks check.
 
@@ -58,8 +58,8 @@ Match source tags to installed dependencies when reasoning about behavior. Refer
 ## 3. PXT TypeScript is not general TypeScript
 
 - Compile game changes with the Arcade CLI, even when host tests pass. Node's transformer accepts constructs the PXT compiler may reject.
-- **Classes with field initializers need an explicit constructor.** The new navigation `Field` initially failed with TS9209 until `constructor() {}` was added. A Node host test cannot detect this restriction.
-- Typed classes and two-argument function callbacks work for the player/weapon/elimination API (milestone 1 CLI build and real simulator). Reference `../pxt/docs/language.md` and `../pxt-common-packages/libs/game/spriteevents.ts`: use namespace-based files, explicit constructors, and plain function callbacks, not class methods used as bound values. Typed event/action Blocks remain a separate milestone; TypeScript callback success alone does not prove their decompilation.
+- **Classes with field initializers need an explicit constructor.** The navigation `Field` failed with TS9209 until `constructor() {}` was added. A Node host test cannot detect this restriction.
+- Typed classes and two-argument function callbacks work for the player/weapon/elimination API (CLI build and real simulator). Reference `../pxt/docs/language.md` and `../pxt-common-packages/libs/game/spriteevents.ts`: use namespace-based files, explicit constructors, and plain function callbacks, not class methods used as bound values. TypeScript callback success alone does not prove that event Blocks decompile; test them in the editor (the Mod blocks are).
 - Game code must use Arcade/PXT APIs, not Node/browser APIs. Keep Node helpers in author-side `.cjs` scripts outside the project manifest.
 - Keep `main.ts` limited to editable asset selection, configuration, and startup. Put mechanics in separate TypeScript files. The implementation does not need to decompile to Blocks.
 - Settings are applied before startup; the current setters ignore later calls. Tests must restart/recompile rather than assume runtime configuration changed.
@@ -82,7 +82,7 @@ Match source tags to installed dependencies when reasoning about behavior. Refer
 - **Include `main.blocks` in `pxt.json` as well as on disk.** Without it, the original project was treated as TypeScript-only: no useful Blocks tab and controller switching to Blocks was a no-op, not an obvious compiler error.
 - Keep baseline `main.blocks` values aligned with `main.ts` when editing outside Arcade. An old cached XML companion can produce a misleading test pass.
 - Expose the small custom category with PXT annotations on exported functions in `shooter.ts`. Preserve explicit `blockId`s when changing labels/function names where practical.
-- The soldier settings function is now `setSoldiers`, but deliberately retains the legacy `shooter_set_enemies` block ID. The ID is compatibility metadata, not visible gameplay terminology.
+- The soldier settings function is `setSoldiers`, but deliberately retains the legacy `shooter_set_enemies` block ID. The ID is compatibility metadata, not visible gameplay terminology.
 - Test BOTH directions: change a non-default value in TypeScript, decompile to Blocks, then edit a block value and inspect regenerated TypeScript. Merely seeing blocks is insufficient.
 - Verify the custom category, expected custom block types, and absence of grey JavaScript blocks in `main.ts`; verify implementation files remain separate after import/round trip.
 - In this editor, obtain Blockly with `pxt.blocks.requireBlockly()` and its workspace through `.common.getMainWorkspace()`. Do not assume a global `Blockly` exists in every build.
@@ -149,7 +149,7 @@ The working patterns are in `tests/editor-smoke.cjs` and `tests/png-hosted.cjs`;
 - Compiled simulator globals have generated suffixes: find a key starting with `name + "___"`, not a complete hardcoded generated name. PXT runtime objects may wrap data: sprite `.fields`, array `.data`; sprite positions observed as `_x / 256`, `_y / 256`. These are version-specific test internals, not public gameplay APIs.
 - Synthetic input goes through `pxsim.runtime.board.handleKeyEvent(key, down)` in the simulator frame. Existing tests show the key IDs. This is not verification of physical keyboard focus/mapping.
 - Controlled placement of existing actors is useful for deterministic wall/detour checks; state explicitly that it is not a full natural match playtest. **Reset the moved bot's cached waypoint and its target field refresh deadline when teleporting it.** Otherwise it tries to finish a waypoint from its previous location, potentially steering diagonally into cover. This was a test-setup stall, not a production respawn defect (respawn creates a fresh navigator).
-- Allow the initial Blocks load to settle before immediately editing imported cached XML. One fresh-import test lost an early field edit during that load; the harness now waits before editing, then verifies regenerated TypeScript AND the runtime value.
+- Allow the initial Blocks load to settle before immediately editing imported cached XML. One fresh-import test lost an early field edit during that load; the harness waits before editing, then verifies regenerated TypeScript AND the runtime value.
 - Blocks → TypeScript emits top-level event handlers **before** the on-start code (observed with the Mod event blocks). Engine calls that refuse registration after `startGame()` would miss them, so the `mod` layer accepts registration at any time and delivers game start and initial deployments on the first frame.
 - A draggable event parameter named `player` was renamed to `player2` on decompilation (a name clash in the generated program); `otherPlayer` was not. The Mod events use Portal's own names, `eventPlayer` / `eventOtherPlayer` / `eventWeapon`, which round-trip unchanged.
 - Namespace top-level statements in other files run before `main.ts`, in `pxt.json` file order: `mod.ts` registers its engine bridge at load, and the mode files register themselves with `shooter.registerMode`. Keep `shooter.ts`, `messages.ts`, `weapons.ts` before `mod.ts`, and the mode files after it.
@@ -168,7 +168,7 @@ The working patterns are in `tests/editor-smoke.cjs` and `tests/png-hosted.cjs`;
 - Import ONLY that PNG into a fresh isolated editor context; check startup, files, custom Blocks, a setting round trip/runtime change after stop/start, AND tilemap editing. Test the same bytes in hosted Arcade too.
 - The hosted editor may need Play pressed after import. Don't treat a paused simulator as a compile failure.
 - Do not optimize/re-encode the PNG or distribute an image preview/screenshot in its place. It can lose the embedded data.
-- Local artifacts/evidence are ignored and not committed/published automatically. Old PNGs do not acquire source changes when the working tree changes; PLAN.md must identify which gameplay model the current artifact actually contains.
+- Local artifacts/evidence are ignored and not committed/published automatically. Old PNGs do not acquire source changes when the working tree changes; check `local/exports/validation.json` (the local export's checksum and checks) before handing a PNG to anyone.
 
 ## 9. Evidence ladder / avoid false claims
 

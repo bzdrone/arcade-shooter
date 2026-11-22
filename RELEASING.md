@@ -1,8 +1,8 @@
 # Preparing a preview release
 
-The project PNG belongs in a versioned GitHub Release. GitHub Pages is optional future documentation hosting, not required for this milestone.
+The project PNG belongs in a versioned GitHub Release. GitHub Pages is optional documentation hosting, not required.
 
-**Current proposed version:** `v0.1.0-preview.1`. It is a prerelease/learner-test candidate, not a validated lesson. No remote repository, tag, or release has been created by these preparation steps.
+Each release has a descriptor and notes under `releases/`. The examples below use `v0.1.0-preview.1`, the published prerelease (a learner-test candidate, not a validated lesson); a new release gets its own version, tested game commit and pinned PNG checksum.
 
 ## Prepare locally
 
@@ -23,9 +23,9 @@ The candidate descriptor is `releases/v0.1.0-preview.1.json`; release notes are 
 
 ## Before GitHub publication
 
-1. **Confirm the destination repository and visibility with the owner.** No Git remote is currently configured. A private repository's releases are not publicly downloadable; choose access intentionally.
+1. **Confirm the destination repository and visibility with the owner.** The project is published at `origin` (public). A private repository's releases are not publicly downloadable; choose access intentionally.
 2. Review the staged notes and handouts. `INTRO.md` references the activity by filename so it works as a separate release download. Handouts are not embedded in the PNG.
-3. Obtain approval to commit the preparation changes. Tag the resulting clean commit, which includes the game, handouts, notes and preparation tool—not only the earlier gameplay commit.
+3. Obtain approval to commit the preparation changes. Tag the resulting clean commit, which includes the game, handouts, notes and preparation tool, not only the tested gameplay commit.
 4. Rerun preparation after that commit; verify `workingTreeDirty` is false and `preparedFromCommit` is the intended tag target in `release-manifest.json`. Check `SHA256SUMS` from inside the staged directory (`sha256sum -c SHA256SUMS` in Bash).
 5. Obtain approval to configure/create the destination and push the reviewed commit/tag. Do not assume permission to publish from permission to prepare locally.
 6. On GitHub, create a **draft prerelease** for proposed tag `v0.1.0-preview.1`, targeting the reviewed preparation commit. Use the prepared release notes as the body and attach exactly:
@@ -42,4 +42,4 @@ GitHub CLI is available locally, but no `gh` publication or repository-creation 
 
 ## Scope and limits
 
-The first release needs no website, new packages, MakeCode share link, or embedded public simulator. Those would be separate decisions. Keep the tested PNG intact, retain separate handouts, and wait for an actual learner before claiming learning effectiveness.
+A release needs no website, new packages, MakeCode share link, or embedded public simulator. Those would be separate decisions. Keep the tested PNG intact, retain separate handouts, and wait for an actual learner before claiming learning effectiveness.

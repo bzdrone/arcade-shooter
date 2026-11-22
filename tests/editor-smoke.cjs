@@ -140,6 +140,7 @@ async function main() {
             fs.mkdirSync(outputDir, { recursive: true })
             const output = path.join(outputDir, 'arcade-shooter.png')
             fs.copyFileSync(path.join(downloadDir, downloaded), output)
+            fs.rmSync(downloadDir, { recursive: true, force: true })
             projectPNG = { output, bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
             console.log(`EXPORTED: ${output}`)
         }
