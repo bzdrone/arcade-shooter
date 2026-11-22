@@ -80,6 +80,59 @@ Keep the first sentence about what the learner can do; include Arcade limits whe
 
 Do not automatically replace these descriptions when updating the SDK: compare behavior and adapt the help. `tests/block-docs.cjs`, called by the local and hosted browser checks, reads actual custom block tooltips to catch missing or stale help. The exported project PNG carries these comments with its source, so learners do not need another documentation download.
 
+### Procedure: bringing SDK descriptions into Arcade
+
+This is a **manual, reviewed adaptation**, not a generated documentation sync. No SDK files are copied into this repository, and there is no doc-string importer to rerun.
+
+1. **Identify the SDK and version.** Read `sdk.version.json` in the separately installed SDK before using its descriptions. The local installation used for this work is `C:/PortalSDK`, version 2.1.2.0. Treat that as a machine-local location, not a project dependency; another author can use a different path. Leave the SDK unchanged.
+
+2. **List the Arcade blocks to document.** Read the exported functions carrying `//% blockId=...` in `mod.ts`. Also review `shooter.ts`, `weapons.ts`, and the legacy block in `deathmatch.ts`. Keep function names, argument order, block labels, and block IDs unchanged: this task changes help, not the API or saved-program compatibility.
+
+3. **Find each corresponding SDK declaration and its immediately preceding comments.** Match by function name in `code/types/mod/index.d.ts`, checking all overloads for player/team targets and optional arguments. Event declarations live in `EventHandlerSignatures`. Most SDK descriptions are ordinary `//` comments, not JSDoc; searching only for `/** ... */` misses them and can accidentally associate a distant comment with the wrong function. For example, from a Bash shell:
+
+   ```sh
+   SDK=C:/PortalSDK
+   rg -n -B 4 -A 8 'export function (SetGameModeScore|GetTeam|Message|OnPlayerEarnedKill)\(' "$SDK/code/types/mod/index.d.ts"
+   ```
+
+   Read enough surrounding lines to see the whole declaration, its overloads, and any deprecation notice. When a declaration is absent, inspect `code/modlib/index.ts` and the SDK's relevant documentation rather than inventing an SDK description. `DisplayGameModeMessage` is one such exception; `Wait` has a declaration but no useful adjacent description in this SDK.
+
+4. **Compare the SDK description with the Arcade implementation.** Read the corresponding function in `mod.ts` and the engine/message/weapon functions it calls. Use the SDK to establish the shared idea, then describe what actually happens here. Check event-player roles, self-inflicted deaths, units, score versus elimination counts, numeric variable limits, audience filtering, and whether an action ends a match. Do not carry over Portal-only promises such as a six-second notification, arbitrary variable values, or an individual-player winner. Shooter settings and Weapons presets have no direct SDK equivalent; document their actual implementation instead.
+
+5. **Write concise JSDoc above the block annotations.** Start with the action or value in plain language. Follow with a short caveat only where needed, then `@param` descriptions using the **Arcade function's exact parameter names**, not the SDK's names. Explain units and unfamiliar terms. For events, explain what `eventPlayer`, `eventOtherPlayer`, and any Arcade-only `eventWeapon` mean in the main description; they are callback values, not top-level function parameters.
+
+   ```typescript
+   /**
+    * Read a team or player's current score. Team and personal scores are separate.
+    * @param target team or player whose score to read
+    */
+   //% blockId=mod_get_game_mode_score block="game mode score of $target"
+   //% group="Score" weight=89
+   export function GetGameModeScore(target: shooter.Team | shooter.Player): number {
+       return target ? shooter.getScore(target) : 0
+   }
+   ```
+
+   PXT reads the description into the block's tooltip and parses `@param` entries into parameter metadata. Its block loader calls `setTooltip` with the API's JSDoc (`pxtblocks/loader.ts` in the reference checkout). A separate Markdown file or a plain `//` comment does not supply this block tooltip. Do not put raw `@param` text in a tooltip annotation or add help URLs that do not exist.
+
+6. **Maintain the real-editor help check.** `tests/block-docs.cjs` creates each custom block in the live Blockly workspace, reads `getTooltip()`, and disposes of the temporary block with Blockly events disabled. Its expected phrases check that meaningful help reached each block and that raw `@param` tags did not leak into the tooltip. Add coverage when adding a block; change a phrase assertion only after reviewing the new description. This checks tooltip text, not the visual layout of a hover popup or every parameter-help UI.
+
+7. **Build, export, and check the exact learner artifact.** From this repository, using the existing sibling toolchain:
+
+   ```sh
+   node ../pxt-arcade/node_modules/pxt-core/built/pxt.js build
+   node --test tests/gameplay.test.cjs tests/pathing.test.cjs
+   node tests/editor-smoke.cjs --png --tilemap
+   node tests/png-hosted.cjs --tilemap
+   git diff --check
+   ```
+
+   The local browser check runs the tooltip assertions, exports a baseline project PNG, imports it into a fresh context, and checks Blocks-first startup and an editable damage change. The hosted check imports those same PNG bytes and runs the tooltip assertions again, proving the help is carried in the artifact rather than supplied by repository files. It also checks startup, custom blocks, and tilemap editing. This is not a full gameplay or learner-usability test.
+
+   The deliverable is `local/exports/arcade-shooter.png`. Local evidence includes `local/exports/validation.json`, `local/editor-smoke/block-docs.json`, `hosted-block-docs.json`, and `hosted-result.json`. A comment-only source change still needs a new export: an older PNG cannot acquire the new help. Do not distribute evidence screenshots as project PNGs.
+
+8. **Review and record durable differences.** Update this reference when a newer SDK reveals a changed name, deprecation, or behavior difference. Keep source/version and maintenance instructions here, repeatable checks in `VALIDATION.md`, and learner usage in `README.md`. Do not vendor SDK dumps or add per-run logs to the docs. Commit or publish only with approval.
+
 ## Porting checklist
 
 Changes when moving an Arcade mode written with `mod` and `weapons` to Portal. `portal/gungame.ts` is a worked example; each change there is marked `PORT:`.
