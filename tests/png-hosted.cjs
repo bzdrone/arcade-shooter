@@ -64,7 +64,7 @@ async function main() {
                 types: (B.common?.getMainWorkspace?.() || B.getMainWorkspace()).getAllBlocks(false).map(b => b.type) }
         })
         assert.equal(blocks.category, true)
-        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'deathmatch_configure']) assert.ok(blocks.types.includes(type))
+        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)))
         if (process.argv.includes('--tilemap')) {
             await page.evaluate(() => {
@@ -77,11 +77,40 @@ async function main() {
             await page.click('[title="Done"]')
             console.log('PASS: imported PNG tilemap opens in the hosted level editor with wall controls')
         }
-        assert.deepEqual(errors, [])
         await page.screenshot({ path: path.join(evidence, 'hosted-blocks.png') })
+        if (process.argv.includes('--modes')) {
+            // Exercise packaged non-default code too: unused APIs can be tree-shaken from deathmatch.
+            await new Promise(r => setTimeout(r, 1000))
+            await page.evaluate(() => {
+                const w = pxt.blocks.requireBlockly().common.getMainWorkspace()
+                w.getAllBlocks(false).find(b => b.type === 'shooter_set_mode').setFieldValue('shooter.Mode.GunGame', 'mode')
+            })
+            await new Promise(r => setTimeout(r, 1200))
+            await page.evaluate(() => Array.from(document.querySelectorAll('span,div')).find(e => e.textContent.trim() === 'JavaScript' && !e.children.length).click())
+            await page.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.Mode.GunGame')))
+            const stop = await page.$('.play-button.stop'); if (stop) await stop.click()
+            await new Promise(r => setTimeout(r, 300))
+            await page.click('.play-button.play')
+            await new Promise(r => setTimeout(r, 1000))
+            const gunSim = await page.waitForFrame(f => f.url().includes('---simulator'))
+            await teamSimulator.install(gunSim)
+            await gunSim.waitForFunction(() => team.get('targetScore') === 4 && team.get('players').data.every(p => p.fields.score === 1 && p.fields.weapon.fields.name === 'Pistol'))
+            await gunSim.evaluate(() => {
+                team.freezeBots(); [[40,24],[24,88],[88,24],[136,88]].forEach((p,i) => team.place(i,...p))
+                team.slots()[2].health = 1; team.slots()[0].nextShotAt = 0
+                pxsim.runtime.board.handleKeyEvent(5, true)
+            })
+            await gunSim.waitForFunction(() => team.get('players').data[0].fields.weapon.fields.name === 'SMG', { timeout: 5000 })
+            await gunSim.evaluate(() => pxsim.runtime.board.handleKeyEvent(5, false))
+            assert.equal(await gunSim.evaluate(() => team.get('announcements').data[0].fields.text), 'YOU: SMG LEVEL 2')
+            await page.screenshot({ path: path.join(evidence, 'hosted-gun-game.png') })
+            console.log('PASS: hosted PNG mode selection compiles gun game, actual elimination advances weapon and formats level-up message')
+        }
+        assert.deepEqual(errors, [])
         const result = { file, sha256: createHash('sha256').update(bytes).digest('hex'), versions,
-            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter settings/start and deathmatch rules blocks, no grey JavaScript'],
+            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter settings/start and mode selector blocks, no grey JavaScript'],
             tilemapEditor: process.argv.includes('--tilemap'),
+            gunGame: process.argv.includes('--modes'),
             limitations: 'Not full gameplay, physical keyboard, lesson, or hosted settings-change validation.' }
         fs.writeFileSync(path.join(evidence, 'hosted-result.json'), JSON.stringify(result, null, 2))
         console.log(`PASS: PNG import, simulator startup and Blocks on hosted Arcade ${versions.target} / PXT ${versions.pxt}`)

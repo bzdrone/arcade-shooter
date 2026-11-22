@@ -76,7 +76,17 @@ The user authorized autonomous implementation of A–D using best judgment, full
 - Add a small named preset catalog in generic engine terms, not Portal enums or real gun names. User excluded sniper and preferred one automatic weapon. Selected catalog: pistol, SMG, shotgun, knife (very short range); omit rifle.
 - Make bots close distance until within weapon range before firing; retain alignment, cover and visibility rules.
 
-**D. Gun game and mode selection**
+**D. Gun game and mode selection** (complete; validated)
+
+- Added `gungame.ts` against the engine: zero-based level in player variable slot 0, personal score = level + 1, team score = highest level on the team, target 4. Deployment equips the level's weapon; an opposing elimination advances immediately and announces the new weapon; the first knife elimination calls `endMatch(player)` and wins for that player's team. Self/friendly scripted eliminations do not advance.
+- Elimination handlers now receive an optional third argument: the `Weapon` that fired the eliminating shot (captured per shot; null for scripted damage). Gun game advances only when it matches the player's current ladder weapon, so late shots from an earlier weapon still damage but cannot skip levels.
+- `shooter.setMode(Mode.Deathmatch | GunGame | None)` with new stable block `shooter_set_mode`; last pre-start selection wins, ignored after startup. The selected mode initializes at `startGame`. Legacy `deathmatch.configure()` / `deathmatch_configure` remains and selects deathmatch. Baseline main.ts/main.blocks use the dropdown set to deathmatch. The engine references the two built-in modes only to initialize the selection.
+- Validation: 40 host tests; Arcade build; full local `--arena --png` (baseline, both deathmatch endings, messages/range variants, controlled full gun-game ladders and wins for both teams with button restart, dropdown round-trip gun game → no mode → gun game, legacy block); exact-source PNG export/fresh import; hosted `--tilemap --modes` (baseline, tilemap, gun game selected in Blocks with a real elimination advancing the weapon). Inspected level-up, both win, hosted and Blocks screenshots: readable; the start notification and a level-up announcement can both be on screen at once without hiding scores or status.
+- Slice D PNG: 50,343 bytes; SHA-256 `7e210a78999141da649e4a65a5d4327060136fd26d22ef7d205e88784f98a673`. Baseline is deathmatch; gun game is selected in Blocks. Not a published asset.
+- Balance (not tuned): no natural full gun-game match was played. The human's 70 px/s versus bots' 10 px/s matters more with individual ladders: the human can kite bots, especially at the knife stage, and blue's team win often depends on the human. Ask the user before tuning.
+
+Original slice D scope:
+
 
 - Implement `gungame.ts` against the engine, not `mod`: per-player level in a player variable, advance on elimination, immediately assign the next catalog weapon, announce level-ups using slice B, and end via `endMatch(player)` on the last weapon's elimination, subject to the agreed victory model.
 - User approved individual ladders with a team win. `endMatch(player)` credits the finishing player's team. Demotion is out of scope.
@@ -93,9 +103,7 @@ For A–D, prefer one function per action with a team/player union where applica
 
 ### Open design questions
 
-- Gun game progression: individual ladders with a team win (leaning) vs. one team ladder.
-- Weapon vocabulary: smaller kid-friendly set (pistol, SMG, shotgun, rifle, sniper, knife; leaning) vs. Portal's eight categories plus knife.
-- Messages: two types (notification + event message; leaning) or three. Whether the persistent HUD status line joins the mod layer (Portal custom notification slot `HeaderText`) or stays engine-only (leaning engine-only).
+- Resolved by the user during A–D: gun game uses individual ladders with a team win; weapon vocabulary is pistol, SMG, shotgun, knife (no rifle/sniper); two message types, with the bottom status line engine-only.
 - Namespaces: whether Arcade also has a `modlib` namespace so helper calls match Portal scripts exactly (`modlib.ShowNotificationMessage`), at the cost of one more concept.
 - Team numbering in `mod`: expose Portal's 1/2 (0 = neutral) or keep the engine's 0/1 and list it as a porting fix-up.
 - Where Portal-side files live: a folder here (outside the PNG manifest) or a separate repository/project.
@@ -112,7 +120,7 @@ For A–D, prefer one function per action with a team/player union where applica
 - **`node tests/editor-smoke.cjs --arena --png` passes**: baseline 2v2 movement/aim/fire, cover, bot detours/fire, friendly/contact rules, team points, five-second red/human respawns, occupied-spawn retry, rebound controls, both tenth-point game-over paths and actual button restart. Runtime checks also verify the same red player receives a new soldier body on respawn. Inspected both result screenshots: correct team and final score ten.
 - Both TS ↔ Blocks directions retain all four custom blocks including deathmatch selection, with no grey JavaScript. Tilemap editor opens with wall controls. Exported manifest-listed sources match exactly; fresh local import starts 2v2 and a Blocks damage edit takes effect after recompilation.
 - **`node tests/png-hosted.cjs --tilemap` passes** for the same PNG bytes on hosted Arcade 4.1.28 / PXT 13.1.25: baseline startup, all four blocks, and editable tilemap.
-- **Current local playtest PNG:** `local/exports/arcade-shooter.png`, **42,130 bytes**, SHA-256 **`f6245535a07e1405a25b7afa29ff6b4791ab0c08d7e102488232dc83ad87425f`**. This overwrites the local export path, not the published preview asset. Evidence: `local/exports/validation.json`, `local/editor-smoke/result.json`, `local/editor-smoke/hosted-result.json`; logs `local/modes-smoke.log`, `local/modes-hosted.log`.
+- **Milestone 1 local playtest PNG (historical; the local export has since been replaced by slices A–D):** **42,130 bytes**, SHA-256 **`f6245535a07e1405a25b7afa29ff6b4791ab0c08d7e102488232dc83ad87425f`**. This overwrites the local export path, not the published preview asset. Evidence: `local/exports/validation.json`, `local/editor-smoke/result.json`, `local/editor-smoke/hosted-result.json`; logs `local/modes-smoke.log`, `local/modes-hosted.log`.
 - Committed as `152ae90`; not tagged or released. Optional user playtest of this refactor remains. Next work follows "Next: Portal-shaped modding" above, starting with the scratch compile test. Synthetic-input/controlled scenarios are not a new natural-match, physical-keyboard, balance, or learner evaluation. The prior positive playtest belongs to the published baseline, not this refactor.
 
 ## Previous 2v2 implementation milestone (published baseline)

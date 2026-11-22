@@ -6,6 +6,11 @@ namespace deathmatch {
     /** Select the original first-team-to-ten rules before starting the engine. */
     //% blockId=deathmatch_configure block="use deathmatch rules"
     export function configure(): void {
+        shooter.setMode(shooter.Mode.Deathmatch)
+    }
+
+    // Called by engine startup, after the final mode selection and before event registration closes.
+    export function initialize(): void {
         if (configured) return
         configured = true
         shooter.setTargetScore(10)

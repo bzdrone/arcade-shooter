@@ -9,6 +9,7 @@
         "main.blocks",
         "shooter.ts",
         "deathmatch.ts",
+        "gungame.ts",
         "messages.ts",
         "weapons.ts",
         "pathing.ts",

@@ -10,13 +10,13 @@ const root = path.resolve(__dirname, '..')
 const shooter = fs.readFileSync(path.join(root, 'shooter.ts'), 'utf8').replace(/\n}\s*$/, `
     export function inspect() { return { players, shots, teams, player, finished, blueScore: teams[0].score, redScore: teams[1].score,
         blueShotKind, redShotKind, spentShotKind, soldierKind, weaponDamage, fireInterval, projectileSpeed } }
-    export function registerShot(sprite, attacker) { shots.push(new Shot(sprite, attacker, attacker.weapon.damage)) }
+    export function registerShot(sprite, attacker) { shots.push(new Shot(sprite, attacker, attacker.weapon.damage, attacker.weapon)) }
 }`)
 const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8')
 const messages = fs.readFileSync(path.join(root, 'messages.ts'), 'utf8').replace(/\n}\s*$/, `
     export function inspect() { return { notifications, announcements } }
 }`)
-const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode + '\n' + messages + '\n' + fs.readFileSync(path.join(root, 'weapons.ts'), 'utf8'), { mode: 'transform' })
+const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode + '\n' + messages + '\n' + fs.readFileSync(path.join(root, 'weapons.ts'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'gungame.ts'), 'utf8'), { mode: 'transform' })
 
 function createGame(modifyLevel) {
     const level = require('./tilemap-fixture.cjs')()
@@ -111,7 +111,7 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
 
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','messages.ts','weapons.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','gungame.ts','messages.ts','weapons.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
@@ -410,6 +410,49 @@ test('short-range bots advance while aligned, then stop and fire in range', () =
     assert.ok(g.state().shots.some(s => s.attacker === bot))
     const shot = g.state().shots.find(s => s.attacker === bot).sprite
     assert.equal(shot.lifespan, 150)
+})
+
+for (const team of [0, 1]) test(`gun game individual ladder wins for team ${team}, persists across death and ignores old shots`, () => {
+    const g = createGame(); g.api.setMode(g.api.Mode.GunGame); g.api.startGame()
+    const ps = g.api.allPlayers(), attacker = ps[team === 0 ? 0 : 2], victim = ps[team === 0 ? 2 : 0]
+    assert.ok(ps.every(p => p.weapon.name === 'Pistol' && g.api.getScore(p) === 1))
+    const fire = () => g.shot(team)
+    const hit = shot => g.overlap(shot, victim.soldier.sprite)
+    const old = fire()
+    hit(fire()); hit(fire()); hit(fire())
+    assert.equal(attacker.weapon.name, 'SMG'); assert.equal(g.api.getVariable(attacker, 0), 1)
+    assert.equal(ps[team === 0 ? 1 : 3].weapon.name, 'Pistol', 'Teammate ladder is independent')
+    g.tick(5000)
+    victim.soldier.health = 1
+    hit(old)
+    assert.equal(attacker.weapon.name, 'SMG', 'Old pistol elimination cannot advance the SMG level')
+    g.tick(10000)
+    hit(fire()); hit(fire()); hit(fire())
+    assert.equal(attacker.weapon.name, 'Shotgun')
+    g.tick(15000)
+    const lateShotgun = fire()
+    hit(fire())
+    assert.equal(attacker.weapon.name, 'Knife')
+    g.api.dealDamage(attacker, 3)
+    g.tick(20000)
+    assert.equal(attacker.weapon.name, 'Knife'); assert.equal(g.api.getVariable(attacker, 0), 3)
+    hit(lateShotgun)
+    assert.equal(g.result, undefined, 'Late shotgun cannot win the knife level')
+    g.tick(25000)
+    const winning = fire(), finalBody = victim.soldier.sprite; hit(winning); g.overlap(winning, finalBody)
+    assert.equal(g.result, team === 0)
+    assert.equal(g.api.getScore(attacker), 4)
+    assert.equal(g.api.getScore(g.api.getTeam(attacker)), 4)
+})
+
+test('mode selection is last-wins before startup, immutable after, with legacy selection retained', () => {
+    const g = createGame()
+    g.mode.configure(); g.api.setMode(g.api.Mode.GunGame); g.api.setMode(g.api.Mode.None); g.api.startGame()
+    g.api.setMode(g.api.Mode.Deathmatch)
+    defeat(g, 2, 0)
+    assert.equal(g.state().blueScore, 0); assert.equal(g.api.getTargetScore(), 0)
+    const legacy = createGame(); legacy.mode.configure(); legacy.api.startGame()
+    assert.equal(legacy.api.getTargetScore(), 10)
 })
 
 test('invalid or disconnected team spawn tiles are reported', () => {

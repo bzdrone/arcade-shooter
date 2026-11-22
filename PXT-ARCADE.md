@@ -150,6 +150,8 @@ The working patterns are in `tests/editor-smoke.cjs` and `tests/png-hosted.cjs`;
 - Synthetic input goes through `pxsim.runtime.board.handleKeyEvent(key, down)` in the simulator frame. Existing tests show the key IDs. This is not verification of physical keyboard focus/mapping.
 - Controlled placement of existing actors is useful for deterministic wall/detour checks; state explicitly that it is not a full natural match playtest. **Reset the moved bot's cached waypoint and its target field refresh deadline when teleporting it.** Otherwise it tries to finish a waypoint from its previous location, potentially steering diagonally into cover. This was a test-setup stall, not a production respawn defect (respawn creates a fresh navigator).
 - Allow the initial Blocks load to settle before immediately editing imported cached XML. One fresh-import test lost an early field edit during that load; the harness now waits before editing, then verifies regenerated TypeScript AND the runtime value.
+- Enum dropdown edits need longer settling: wait about 1.8 s after the first fresh decompilation before changing a dropdown field, and about 1.2 s before switching back to TypeScript. With 700 ms the field edit was accepted but the editor returned cached TypeScript.
+- Importing another project (for example a disposable source variant) can detach and recreate the simulator iframe. Reacquire the frame after each import and rebind any input helpers to the new frame.
 - Evidence screenshots/results go under ignored `local/editor-smoke/`. Do not confuse these screenshots with importable project PNGs.
 
 ## 8. Project PNGs: export the real project, validate exact bytes

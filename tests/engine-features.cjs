@@ -2,8 +2,8 @@
 const assert = require('node:assert/strict')
 const teamSimulator = require('./team-simulator.cjs')
 
-async function variant(ctx, extra) {
-    const main = ctx.text['main.ts'] + '\n' + extra
+async function variant(ctx, extra, mode = 'Deathmatch') {
+    const main = ctx.text['main.ts'].replace('shooter.Mode.Deathmatch', 'shooter.Mode.' + mode) + '\n' + extra
     await ctx.command('importproject', { project: { text: { ...ctx.text, 'main.ts': main } } })
     await ctx.editor.waitForFunction(main => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().replace(/\r\n/g, '\n') === main.replace(/\r\n/g, '\n')), {}, main)
     await ctx.command('stopsimulator'); await ctx.command('startsimulator'); await ctx.sleep(1000)
@@ -62,4 +62,81 @@ shooter.giveWeapon(shooter.allPlayers()[2], weapons.create(weapons.Kind.Knife))
     assert.equal(await ctx.sim.evaluate(() => team.get('redScore')), 1)
     console.log('PASS: real short-range projectile expiry, range-aware pursuit and close-range elimination')
 }
-module.exports = { variant, checkMessages, checkWeapons }
+async function checkModes(ctx) {
+    await variant(ctx, '', 'GunGame')
+    assert.equal(await ctx.sim.evaluate(() => team.get('players').data.every(p => p.fields.weapon.fields.name === 'Pistol')), true)
+    // Test enum selection in BOTH directions and the original legacy block ID.
+    await ctx.command('switchblocks'); await ctx.sleep(1800)
+    const types = await ctx.editor.evaluate(() => {
+        const w = pxt.blocks.requireBlockly().common.getMainWorkspace()
+        const all = w.getAllBlocks(false)
+        const block = all.find(b => b.type === 'shooter_set_mode')
+        const options = block.getField('mode').getOptions()
+        block.setFieldValue('shooter.Mode.None', 'mode')
+        return { types: all.map(b => b.type), options }
+    })
+    console.log('MODE OPTIONS', JSON.stringify(types.options))
+    assert.ok(!types.types.some(t => /javascript|typescript/.test(t)))
+    await ctx.sleep(1200); await ctx.command('switchjavascript')
+    await ctx.editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.Mode.None'))).catch(async e => {
+        console.log('MODE MAIN', await ctx.editor.evaluate(() => monaco.editor.getModels().filter(m => m.uri.path.endsWith('/main.ts')).map(m => m.getValue())))
+        throw e
+    })
+    await ctx.command('stopsimulator'); await ctx.command('startsimulator'); await ctx.sleep(1000)
+    ctx.sim = await ctx.page.waitForFrame(f => f.url().includes('---simulator'))
+    await teamSimulator.install(ctx.sim)
+    assert.equal(await ctx.sim.evaluate(() => team.get('targetScore')), 0, 'No mode has no win target')
+    await ctx.editor.evaluate(() => {
+        const m = monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts'))
+        m.setValue(m.getValue().replace('shooter.Mode.None', 'shooter.Mode.GunGame'))
+    })
+    await ctx.command('switchblocks'); await ctx.sleep(700)
+    assert.equal(await ctx.editor.evaluate(() => pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false).find(b => b.type === 'shooter_set_mode').getFieldValue('mode')), 'shooter.Mode.GunGame')
+    await ctx.screenshot('gun-game-blocks.png')
+    await ctx.command('switchjavascript')
+    for (const winningTeam of [0, 1]) {
+        await variant(ctx, '', 'GunGame')
+        const killer = winningTeam === 0 ? 0 : 2, victim = winningTeam === 0 ? 2 : 0
+        for (let level = 0; level < 4; level++) {
+            await ctx.sim.waitForFunction(v => !!team.slots()[v].sprite, { timeout: 7000 }, victim)
+            await ctx.sim.evaluate(({ killer, victim, level }) => {
+                team.freezeBots()
+                // Others cannot interfere. Keep every phase in the clear upper lane.
+                team.slots().forEach((s,i) => { if (s.sprite) team.place(i, i === 1 ? 24 : 136, 88) })
+                team.place(killer, 40, 24); team.place(victim, level < 2 ? 88 : level === 2 ? 64 : 50, 24)
+                team.slots()[victim].health = 1
+                team.slots()[killer].nextShotAt = 0
+            }, { killer, victim, level })
+            if (winningTeam === 0) await ctx.button(5, true)
+            if (level < 3) {
+                await ctx.sim.waitForFunction(({ killer, level }) => team.get('players').data[killer].fields.score === level + 2, { timeout: 5000 }, { killer, level })
+                if (winningTeam === 0) await ctx.button(5, false)
+                const progression = await ctx.sim.evaluate(k => ({
+                    weapon: team.get('players').data[k].fields.weapon.fields.name,
+                    others: team.get('players').data.filter((p,i) => i !== k).map(p => p.fields.score)
+                }), killer)
+                assert.equal(progression.weapon, ['SMG', 'Shotgun', 'Knife'][level])
+                assert.ok(progression.others.every(score => score === 1), 'Other player ladders stay independent')
+                if (level === 0) await ctx.screenshot('gun-game-level-up.png')
+            } else {
+                await ctx.sim.waitForFunction(() => team.get('finished'), { timeout: 5000 })
+                if (winningTeam === 0) await ctx.button(5, false)
+            }
+        }
+        await ctx.sleep(1300)
+        await ctx.screenshot(winningTeam === 0 ? 'gun-blue-win.png' : 'gun-red-win.png')
+        await ctx.button(5, true); await ctx.sleep(100); await ctx.button(5, false)
+        await ctx.sim.waitForFunction(() => {
+            const g = pxsim.runtime.globals
+            const get = n => g[Object.keys(g).find(k => k.startsWith(n + '___') && (n !== 'players' || g[k]?.data?.some(p => p.fields && 'soldier' in p.fields)))]
+            return !get('finished') && get('players')?.data?.every(p => p.fields.score === 1 && p.fields.weapon.fields.name === 'Pistol' && p.fields.soldier)
+        }, { timeout: 15000 })
+        console.log(`PASS: real gun game team ${winningTeam} completes all four weapons, team victory and button restart`)
+    }
+    const legacy = ctx.text['main.ts'].replace('shooter.setMode(shooter.Mode.Deathmatch)', 'deathmatch.configure()')
+    await ctx.command('importproject', { project: { text: { ...ctx.text, 'main.ts': legacy } } })
+    await ctx.sleep(1000); await ctx.command('switchblocks'); await ctx.sleep(800)
+    assert.equal(await ctx.editor.evaluate(() => pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false).some(b => b.type === 'deathmatch_configure')), true)
+    console.log('PASS: three-way mode enum round-trips, no-mode runtime and legacy deathmatch block retained')
+}
+module.exports = { variant, checkMessages, checkWeapons, checkModes }

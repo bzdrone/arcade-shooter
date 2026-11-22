@@ -5,6 +5,6 @@ tiles.setCurrentTilemap(tilemap`trainingYard`)
 shooter.setWeapon(1, 750, 80)
 // All soldiers: health, bot movement speed, minimum respawn delay.
 shooter.setSoldiers(3, 10, 5000)
-// Rules are separate from the combat engine.
-deathmatch.configure()
+// Choose deathmatch, gun game, or no mode (combat without scoring/win rules).
+shooter.setMode(shooter.Mode.Deathmatch)
 shooter.startGame()

@@ -61,7 +61,7 @@ The author-side export/import command and local artifact location are documented
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
-2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, deathmatch.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
+2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, deathmatch.ts, gungame.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
 3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
 4. Run the simulator and check the Blocks customization surface and tilemap editor.
 
@@ -76,7 +76,8 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
-- deathmatch.ts: first-team-to-ten rules over engine-owned team scores; selected by `deathmatch.configure()` before startup.
+- deathmatch.ts: first-team-to-ten rules over engine-owned team scores.
+- gungame.ts: individual weapon ladders (pistol → SMG → shotgun → knife); the player who finishes wins for their team.
 - weapons.ts: four small named presets (pistol, SMG, shotgun, knife), not a real inventory simulation.
 - messages.ts: non-blocking notification/announcement queues and single-screen audience filtering.
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
@@ -93,13 +94,15 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
 - [Development plan](PLAN.md): agreed next steps and development status.
 
-Baseline settings and mode selection apply before startGame(); later settings calls are ignored. The Shooter category retains its three settings/start blocks; the Deathmatch category adds **use deathmatch rules**. Without mode rules, the engine still runs combat and respawns but does not score eliminations or end a match automatically.
+Baseline settings and mode selection apply before startGame(); later settings calls are ignored. **set shooter mode** chooses deathmatch (the baseline), gun game, or no mode; the last selection before startup wins. The older **use deathmatch rules** block still works and selects deathmatch. With no mode, the engine still runs combat and respawns but does not score eliminations or end a match automatically.
 
-For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` makes a weapon value, and `shooter.giveWeapon(player, weapon)` changes that player's subsequent shots and survives respawn. Already-fired shots retain their original damage and attacker; replacing a weapon does not reset the current cooldown. `shooter.onElimination(function (attacker, victim) { ... })` registers rules before startup and reports persistent players, not disposable soldier bodies. External sprite removal is not an elimination and does not change elimination/death statistics. `shooter.dealDamage(victim, damage, attacker?)` supports scripted damage; omitted attacker means self-inflicted damage (same attacker/victim in the event, no elimination credit).
+**Gun game:** every soldier starts with the pistol. Each elimination of an opponent moves only that player up one weapon (pistol → SMG → shotgun → knife) and shows an announcement; levels survive death. An elimination with the knife wins for that player's team. The HUD's team score is the team's highest level and the target is 4. Only shots from the player's current weapon advance a level, so a late shot from an earlier weapon still damages but cannot skip a level. The level is stored in player variable slot 0. There is no demotion.
+
+For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` makes a weapon value, and `shooter.giveWeapon(player, weapon)` changes that player's subsequent shots and survives respawn. Already-fired shots retain their original damage and attacker; replacing a weapon does not reset the current cooldown. `shooter.onElimination(function (attacker, victim, weapon) { ... })` registers rules before startup (the `weapon` argument is optional: the weapon that fired the eliminating shot, or null for scripted damage) and reports persistent players, not disposable soldier bodies. External sprite removal is not an elimination and does not change elimination/death statistics. `shooter.dealDamage(victim, damage, attacker?)` supports scripted damage; omitted attacker means self-inflicted damage (same attacker/victim in the event, no elimination credit).
 
 Match state belongs to the engine: `getScore`/`setScore` accept a `Team | Player`; `getTargetScore`/`setTargetScore` control the target. Deathmatch increments only team scores and supplies the ten-point rule. `shooter.endMatch(teamOrPlayer)` accepts either value; a player winner wins for their team. `teamById(0/1)` and `getTeam(player)` return team values. `allPlayers()` returns a copy of the roster; `isHuman`, `isAlive`, `getEliminations`, and `getDeaths` provide player queries. `onDeployed` fires once per successful spawn, including initial deployment after map validation. Register events before startup.
 
-`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Player/action/event Blocks and other modes are planned, not implemented yet.
+`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Learner-facing player/action/event Blocks are planned, not implemented yet.
 
 For mode messages, `messages.text("{} reached level {}", player, level)` substitutes up to three placeholders (strings, numbers, or players by display name). Send it using `messages.notify(text, target?)` or `messages.announce(text, target?)`. Omitted target means everyone; a player/team target uses the same union types as match state. On this single screen, only everyone/human/blue-team messages are shown. Notifications last 1.8 seconds, announcements 2.4 seconds, with separate queues capped at eight entries each. They never pause play; overflow removes the oldest waiting entry, preserving the current message.
 

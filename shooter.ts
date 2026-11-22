@@ -12,9 +12,18 @@ namespace shooter {
     let player: Sprite = null
     let facingX = 1
     let facingY = 0
+    export enum Mode {
+        //% block="deathmatch"
+        Deathmatch,
+        //% block="gun game"
+        GunGame,
+        //% block="no mode"
+        None
+    }
+    let selectedMode = Mode.None
     let targetScore = 0
     let deployedHandlers: ((player: Player) => void)[] = []
-    let eliminationHandlers: ((attacker: Player, victim: Player) => void)[] = []
+    let eliminationHandlers: ((attacker: Player, victim: Player, weapon: Weapon) => void)[] = []
     const soldierKind = SpriteKind.create()
     const blueShotKind = SpriteKind.create()
     const redShotKind = SpriteKind.create()
@@ -57,7 +66,7 @@ namespace shooter {
     }
 
     class Shot {
-        constructor(public sprite: Sprite, public attacker: Player, public damage: number) {}
+        constructor(public sprite: Sprite, public attacker: Player, public damage: number, public weapon: Weapon) {}
     }
 
     /** Range is capped by the existing 2.5-second lifetime; color 0 keeps team colors. */
@@ -73,7 +82,7 @@ namespace shooter {
     }
 
     /** Register mode rules before starting the match. */
-    export function onElimination(handler: (attacker: Player, victim: Player) => void): void {
+    export function onElimination(handler: (attacker: Player, victim: Player, weapon: Weapon) => void): void {
         if (!started && handler) eliminationHandlers.push(handler)
     }
 
@@ -120,6 +129,13 @@ namespace shooter {
         pause(50)
         const winningTeam = winner instanceof Team ? winner : getTeam(winner)
         game.over(winningTeam.id == 0)
+    }
+
+    /** Last selection before startup wins. No mode runs combat without rules. */
+    //% blockId=shooter_set_mode block="set shooter mode $mode"
+    //% mode.defl=shooter.Mode.Deathmatch weight=75
+    export function setMode(mode: Mode): void {
+        if (!started) selectedMode = mode
     }
 
     /** Shared starting weapon for every player. Configure before starting. */
@@ -223,7 +239,7 @@ namespace shooter {
                             5 5`
         picture.replace(5, weapon.color > 0 ? weapon.color : owner.team == 0 ? 5 : 3)
         const shot = sprites.createProjectileFromSprite(picture, soldier.sprite, dx * weapon.speed, dy * weapon.speed)
-        shots.push(new Shot(shot, owner, weapon.damage))
+        shots.push(new Shot(shot, owner, weapon.damage, weapon))
         shot.setKind(owner.team == 0 ? blueShotKind : redShotKind)
         shot.setFlag(SpriteFlag.DestroyOnWall, true)
         shot.lifespan = Math.min(2500, Math.max(1, Math.floor(weapon.range * 1000 / weapon.speed)))
@@ -244,11 +260,11 @@ namespace shooter {
         shot.setKind(spentShotKind)
         shots.removeElement(fired)
         shot.destroy()
-        dealDamage(victim, fired.damage, fired.attacker)
+        dealDamage(victim, fired.damage, fired.attacker, fired.weapon)
     }
 
     /** Generic scripted damage. Omitting the attacker is self-inflicted damage. */
-    export function dealDamage(victim: Player, damage: number, attacker: Player = null): void {
+    export function dealDamage(victim: Player, damage: number, attacker: Player = null, weapon: Weapon = null): void {
         if (finished || !victim || !victim.soldier || damage <= 0) return
         victim.soldier.health -= Math.max(0, Math.round(damage))
         if (victim.soldier.health > 0) return
@@ -256,7 +272,7 @@ namespace shooter {
         victim.deaths++
         if (attacker != victim) attacker.eliminations++
         retire(victim) // Untrack before destruction or event callbacks run.
-        for (let i = 0; i < eliminationHandlers.length; i++) eliminationHandlers[i](attacker, victim)
+        for (let i = 0; i < eliminationHandlers.length; i++) eliminationHandlers[i](attacker, victim, weapon)
     }
 
     function targetFor(owner: Player, now: number): Soldier {
@@ -304,6 +320,8 @@ namespace shooter {
     //% weight=70
     export function startGame(): void {
         if (started) return
+        if (selectedMode == Mode.Deathmatch) deathmatch.initialize()
+        else if (selectedMode == Mode.GunGame) gungame.initialize()
         started = true
         scene.setBackgroundColor(15)
         game.setGameOverScoringType(game.ScoringType.None)
