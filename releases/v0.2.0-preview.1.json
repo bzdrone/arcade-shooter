@@ -1,0 +1,11 @@
+{
+  "version": "v0.2.0-preview.1",
+  "gameSourceCommit": "d8d0625",
+  "pngSha256": "e5597dcdede26f40fdc90c5b4a9e7a0937afa01e3b6fa35973e2bf0f1ebaf333",
+  "pngBytes": 60326,
+  "handouts": {
+    "INTRO.md": "INTRO.md",
+    "01-weapon-tuning.md": "lessons/01-weapon-tuning.md",
+    "02-mod-rules.md": "lessons/02-mod-rules.md"
+  }
+}

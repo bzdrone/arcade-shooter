@@ -30,4 +30,14 @@ Before playing, predict what will change. Afterward, explain what you noticed. T
 
 For a longer experiment, use the accompanying **weapon-tuning activity** (`01-weapon-tuning.md`), supplied as a separate release download.
 
+## Try another game mode
+
+In Blocks, the **set shooter mode** block chooses the rules:
+
+- **deathmatch:** the match described above.
+- **gun game:** everyone starts with a pistol. Each elimination moves only you up to the next weapon (SMG, shotgun, then knife); the first knife elimination wins for your team.
+- **no mode:** soldiers fight, but nothing scores. You write the rules yourself with the **Mod** blocks, which use the same names as Battlefield 6 Portal's scripting. The **mod rules activity** (`02-mod-rules.md`) walks through it.
+
+Stop and start the simulator after changing the mode.
+
 *This introduction and the activity are separate handouts; they are not embedded in the game PNG.*

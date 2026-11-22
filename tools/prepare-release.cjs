@@ -6,7 +6,8 @@ const path = require('node:path')
 const { createHash } = require('node:crypto')
 const { execFileSync } = require('node:child_process')
 const root = path.resolve(__dirname, '..')
-const version = process.argv[2] || 'v0.1.0-preview.1'
+const version = process.argv[2]
+assert.ok(version, 'Usage: node tools/prepare-release.cjs <version>, e.g. v0.2.0-preview.1')
 assert.match(version, /^v\d+\.\d+\.\d+-preview\.\d+$/, 'Expected a preview version, e.g. v0.1.0-preview.1')
 const read = name => fs.readFileSync(path.join(root, name))
 const json = name => JSON.parse(read(name).toString('utf8'))
@@ -36,12 +37,11 @@ assert.equal(local.bytes, candidate.pngBytes)
 assert.equal(hosted.tilemapEditor, true)
 assert.deepEqual(local.requiredFiles, manifest.files)
 const notes = read(`releases/${version}.md`)
-const files = {
-    'arcade-shooter.png': png,
-    'INTRO.md': read('INTRO.md'),
-    '01-weapon-tuning.md': read('lessons/01-weapon-tuning.md'),
-    'LICENSE': read('LICENSE')
-}
+// Handouts: release asset name -> repository path. Older descriptors omit the list.
+const handouts = candidate.handouts || { 'INTRO.md': 'INTRO.md', '01-weapon-tuning.md': 'lessons/01-weapon-tuning.md' }
+const files = { 'arcade-shooter.png': png }
+for (const [name, source] of Object.entries(handouts)) files[name] = read(source)
+files.LICENSE = read('LICENSE')
 const releaseManifest = {
     version, gameSourceCommit: gameCommit,
     preparedFromCommit: git(['rev-parse', 'HEAD']).trim(),
@@ -65,5 +65,5 @@ console.log(`Prepared ${version} in ${output}`)
 console.log(`Game source: ${gameCommit}`)
 console.log(`PNG SHA-256: ${candidate.pngSha256}`)
 console.log(`Working tree dirty: ${releaseManifest.workingTreeDirty}; commit approved preparation changes, then rerun before publishing.`)
-console.log('Upload the six assets listed above in releases/<version>.md; use release-notes.md as the release body, not an asset.')
+console.log(`Upload the ${Object.keys(files).length} assets listed in releases/${version}.md; use release-notes.md as the release body, not an asset.`)
 console.log('Nothing committed, tagged, pushed, or published.')
