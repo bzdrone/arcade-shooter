@@ -22,6 +22,9 @@ namespace shooter {
     }
     let selectedMode = Mode.None
     let targetScore = 0
+    let modeIds: number[] = []
+    let modeInitializers: (() => void)[] = []
+    let startedHandlers: (() => void)[] = []
     let deployedHandlers: ((player: Player) => void)[] = []
     let eliminationHandlers: ((attacker: Player, victim: Player, weapon: Weapon) => void)[] = []
     const soldierKind = SpriteKind.create()
@@ -88,6 +91,19 @@ namespace shooter {
 
     export function onDeployed(handler: (player: Player) => void): void {
         if (!started && handler) deployedHandlers.push(handler)
+    }
+
+    /** Called once after map validation and initial spawns, before initial deployment events. */
+    export function onMatchStarted(handler: () => void): void {
+        if (!started && handler) startedHandlers.push(handler)
+    }
+
+    /** Mode files register their rules; startGame runs only the selected mode's initializer. */
+    export function registerMode(mode: Mode, initialize: () => void): void {
+        if (!started && initialize) {
+            modeIds.push(mode)
+            modeInitializers.push(initialize)
+        }
     }
 
     export function allPlayers(): Player[] { return players.slice() }
@@ -320,8 +336,7 @@ namespace shooter {
     //% weight=70
     export function startGame(): void {
         if (started) return
-        if (selectedMode == Mode.Deathmatch) deathmatch.initialize()
-        else if (selectedMode == Mode.GunGame) gungame.initialize()
+        for (let i = 0; i < modeIds.length; i++) if (modeIds[i] == selectedMode) modeInitializers[i]()
         started = true
         scene.setBackgroundColor(15)
         game.setGameOverScoringType(game.ScoringType.None)
@@ -362,6 +377,7 @@ namespace shooter {
                 return
             }
         }
+        for (let i = 0; i < startedHandlers.length; i++) startedHandlers[i]()
         for (let i = 0; i < players.length; i++) deployed(players[i])
         scene.createRenderable(100, function (target) {
             target.fillRect(0, 0, scene.screenWidth(), 9, 15)

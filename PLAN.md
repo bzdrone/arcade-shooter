@@ -26,7 +26,7 @@ Revised with the user after milestone 1. This replaces the earlier game-mode mil
 2. **`mod` layer** (new): the only learner-facing scripting surface. Copies Portal's `mod` names, argument order and event shapes for the subset game modes need, mapped thinly onto the engine. This reverses the earlier "plain words only" decision **for this layer**: Portal's names are the point. Portal overloads become one function with a union parameter (for example `SetGameModeScore(target: Team | Player, score)`) dispatched with `instanceof`; Blocks accept union-typed inputs.
 3. **Compatibility libraries** that hide Portal systems too large to mirror:
    - **Weapons:** a small weapon-category vocabulary (about 4–6 categories, enough for a gun game ladder), with `giveWeapon(player, category)`-style calls. Arcade maps a category to stats (damage, interval, speed, range, projectile color); a later Portal-side table maps it to one concrete `mod.Weapons` value plus inventory slot and removes the previous weapon. Do not mirror Portal's 67-gun `Weapons` enum, inventory slots, or real gun names.
-   - **Messages:** mirror Portal `modlib`'s simple helpers instead of its widget UI system: `mod.Message(text, a?, b?, c?)` with `{}` placeholders, `ShowNotificationMessage(msg, target?)`, `ShowEventGameModeMessage(msg, target?)`, optionally `ShowHighlightedGameModeMessage`. Target is an optional `Player | Team`; omitted means everyone. Arcade draws messages in the HUD on a timer with a queue (never `game.splash`), and drops messages aimed only at bots or the red team since there is one screen.
+   - **Messages:** a small subset instead of Portal's widget UI system, kept in `mod` (user decision in E): `mod.Message(text, a?, b?, c?)` with `{}` placeholders, `DisplayNotificationMessage(msg, target?)` and `DisplayGameModeMessage(msg, target?)` (ported to `modlib.ShowEventGameModeMessage` while Portal's built-in is broken). Target is an optional `Player | Team`; omitted means everyone. Arcade draws messages in the HUD on a timer with a queue (never `game.splash`), and drops messages aimed only at bots or the red team since there is one screen.
 4. **Modes**: `deathmatch.ts` and `gungame.ts` are rewritten/written **against `mod`** so they double as worked examples that read almost like Portal scripts. "Custom" is simply no built-in mode loaded: the learner writes rules with `mod`.
 
 ### Engine additions the mod layer needs
@@ -93,9 +93,19 @@ Original slice D scope:
 - Add deathmatch / gun game / no-mode (engine-only) selection to `main.ts` and Blocks. Keep existing block IDs stable and assign stable IDs to new blocks.
 - Report balance observations, especially human 70 px/s versus bots 10 px/s; ask before tuning beyond basic playability.
 
-**E. Deferred: Portal-shaped layer and learner path**
+**E. Portal-shaped layer and learner path** (complete; validated)
 
-- Not part of slices A–D: the `mod` layer, rewriting modes against it, learner event/action Blocks, lessons, porting checklist work, Portal-side files, or releases. Do not start these yet.
+- After D the user asked for an evaluation of whether A–D stayed close enough to plan, then E. Evaluation: yes. All handoff acceptance items were met and validated, and deathmatch was unchanged. The deviations were user-approved (four-weapon catalog) or small (the engine named the two built-in modes; removed in E). One addition: the elimination event carries the firing weapon.
+- User decisions for E: Portal team numbering 1/2 in `mod`; everything in `mod` (no `modlib` namespace); rewrite both modes with `mod` and keep gun game's late-shot check through an extra kill-event parameter, listed as a porting fix-up.
+- `mod.ts`: Portal-named events (`OnGameModeStarted`, `OnPlayerDeployed`, `OnPlayerDied`, `OnPlayerEarnedKill` with `eventPlayer`/`eventOtherPlayer`/`eventWeapon`), score/target/end with `Team | Player` unions, `GetTeam(player | 1 | 2)`, `Equals`, `AllPlayers`, kills/deaths, `DealDamage`, `ObjectVariable`/`GlobalVariable` with `SetVariable`/`GetVariable`, `Message` with `{}` placeholders, `DisplayNotificationMessage`, `DisplayGameModeMessage`, `Wait`. Learner Blocks in a **Mod** category (plain MakeCode event blocks with draggable parameters). Game start and first deployments are delivered on the first frame, so handlers registered after `startGame()` (Blocks emits event handlers before on-start code) still receive them.
+- `weapons.ts` is now the weapons compatibility library with a **Weapons** Blocks category: `give`, `current`, `kindOf`, `name`, and a category reporter.
+- Engine: modes register via `shooter.registerMode` (the engine no longer names deathmatch/gun game) and a new `onMatchStarted` hook. Gameplay rules unchanged.
+- `deathmatch.ts` and `gungame.ts` rewritten with `mod`/`weapons` as worked examples; behavior unchanged except that the target score and the start notification appear on the first frame.
+- Portal side: `portal/gungame.ts` (Portal-side weapons table plus gun game, changes marked `PORT:`) and `portal/gungame.strings.json`; `tools/check-portal.cjs` type-checks them against a local SDK and checks string keys. Passes against SDK 2.1.2.0; **not run in Portal**. PORTAL.md now documents the implemented layer and the porting checklist.
+- Lesson draft `lessons/02-mod-rules.md`: write a scoring rule with Mod blocks in no mode, then a streak with player variables.
+- Validation: 46 host tests (6 new mod/weapons tests); Arcade build; full local `--arena --png` including the new learner-rules check (learner Mod/Weapons program appended after `startGame()` in no mode: start/deploy/kill/died handlers, non-blocking `Wait`, real elimination, TS → Blocks with all 22 Mod/Weapons block types and no grey blocks → edited → TS → compiled run); exact-source PNG export/fresh import; hosted `--tilemap --modes` (gun game through `mod` on hosted Arcade 4.1.28 / PXT 13.1.25); `tools/check-portal.cjs` against SDK 2.1.2.0. Inspected `mod-blocks.png`, `mod-rules.png`, `hosted-gun-game.png`, `blue-win.png`: readable, deathmatch result unchanged.
+- Slice E PNG: 60,326 bytes; SHA-256 `4f5f28186458678760ab96ecbf2d92e4baa6c5de04b8ea5633683a1cba0bc44a`. Baseline is deathmatch. Not a published asset.
+- Not done: releases (need approval), a Portal playtest, a learner trial of lesson 2, balance tuning.
 
 For A–D, prefer one function per action with a team/player union where applicable (separately named functions are the approved fallback); events pass players, never sprites. No learner-facing engine event/action Blocks: only configuration and mode-selection blocks. Keep the scope to engine support needed by these slices; no extra maps or unrelated polish.
 
@@ -104,10 +114,8 @@ For A–D, prefer one function per action with a team/player union where applica
 ### Open design questions
 
 - Resolved by the user during A–D: gun game uses individual ladders with a team win; weapon vocabulary is pistol, SMG, shotgun, knife (no rifle/sniper); two message types, with the bottom status line engine-only.
-- Namespaces: whether Arcade also has a `modlib` namespace so helper calls match Portal scripts exactly (`modlib.ShowNotificationMessage`), at the cost of one more concept.
-- Team numbering in `mod`: expose Portal's 1/2 (0 = neutral) or keep the engine's 0/1 and list it as a porting fix-up.
-- Where Portal-side files live: a folder here (outside the PNG manifest) or a separate repository/project.
-- Blocks presentation of `mod` rules: plain MakeCode event blocks or a Portal-like rule shape.
+- Resolved for E: no `modlib` namespace (messages in `mod`); Portal team numbering 1/2; Portal-side files in `portal/` here, outside the PNG manifest; plain MakeCode event blocks with draggable parameters.
+- Open: whether to publish a new preview release with the mod layer; how the Portal port behaves in Portal (player `ObjectVariable` slots, weapon swap feel, number arguments in messages).
 
 ## Game modes milestone 1: implemented and automated checks passed
 

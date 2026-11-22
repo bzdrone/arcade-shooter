@@ -1,0 +1,8 @@
+{
+  "gunGameLadder": "GUN GAME: PISTOL > SMG > SHOTGUN > KNIFE",
+  "levelUp": "{}: {} LEVEL {}",
+  "pistol": "PISTOL",
+  "smg": "SMG",
+  "shotgun": "SHOTGUN",
+  "knife": "KNIFE"
+}

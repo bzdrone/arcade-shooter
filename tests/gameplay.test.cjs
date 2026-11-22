@@ -16,7 +16,9 @@ const mode = fs.readFileSync(path.join(root, 'deathmatch.ts'), 'utf8')
 const messages = fs.readFileSync(path.join(root, 'messages.ts'), 'utf8').replace(/\n}\s*$/, `
     export function inspect() { return { notifications, announcements } }
 }`)
-const source = stripTypeScriptTypes(fs.readFileSync(path.join(root, 'pathing.ts'), 'utf8') + '\n' + shooter + '\n' + mode + '\n' + messages + '\n' + fs.readFileSync(path.join(root, 'weapons.ts'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'gungame.ts'), 'utf8'), { mode: 'transform' })
+// Same order as pxt.json: engine, messages, weapons, mod bridge, then modes that register with it.
+const read = name => fs.readFileSync(path.join(root, name), 'utf8')
+const source = stripTypeScriptTypes([read('pathing.ts'), shooter, messages, read('weapons.ts'), read('mod.ts'), mode, read('gungame.ts')].join('\n'), { mode: 'transform' })
 
 function createGame(modifyLevel) {
     const level = require('./tilemap-fixture.cjs')()
@@ -68,7 +70,7 @@ function createGame(modifyLevel) {
                 ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
         })) }
     }
-    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, A, all, level,
+    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, mod: context.mod, A, all, level,
         state,
         tick(time) { now = time; updates.forEach(handler => handler()) },
         runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
@@ -111,7 +113,7 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
 
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts','main.blocks','shooter.ts','deathmatch.ts','gungame.ts','messages.ts','weapons.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+    for (const name of ['main.ts','main.blocks','shooter.ts','messages.ts','weapons.ts','mod.ts','deathmatch.ts','gungame.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
@@ -198,7 +200,7 @@ for (const [name, slot, team] of [['human', 0, 1], ['friendly bot', 1, 1], ['red
 }
 
 test('occupied spawn points delay respawn until a point becomes clear', () => {
-    const g = createGame(); g.runMain(); defeat(g, 0, 1)
+    const g = createGame(); g.runMain(); g.tick(0); defeat(g, 0, 1)
     const s = g.state().soldiers
     s[1].sprite.setPosition(24, 40); s[2].sprite.setPosition(24, 72)
     g.tick(5000); assert.equal(s[0].sprite, null)
@@ -295,7 +297,7 @@ test('real fired shots retain damage and attacker after weapon change and attack
 })
 
 test('deathmatch selection is idempotent and endMatch blocks later damage and respawns', () => {
-    const g = createGame(); g.mode.configure(); g.mode.configure(); g.api.startGame()
+    const g = createGame(); g.mode.configure(); g.mode.configure(); g.api.startGame(); g.tick(0)
     defeat(g, 2, 0)
     assert.equal(g.state().blueScore, 1)
     g.api.endMatch(g.api.teamById(1))
@@ -311,7 +313,7 @@ test('deathmatch selection is idempotent and endMatch blocks later damage and re
 test('deployment, numeric variables, scores and queries belong to persistent players', () => {
     const g = createGame(), deployments = []
     g.api.onDeployed(p => { deployments.push(p); g.api.setVariable(p, 2, g.api.getVariable(p, 2) + 1) })
-    g.runMain()
+    g.runMain(); g.tick(0)
     const all = g.api.allPlayers(), human = all[0], red = all[2]
     assert.equal(all.length, 4); all.pop(); assert.equal(g.api.allPlayers().length, 4)
     assert.equal(deployments.length, 4)
@@ -413,7 +415,7 @@ test('short-range bots advance while aligned, then stop and fire in range', () =
 })
 
 for (const team of [0, 1]) test(`gun game individual ladder wins for team ${team}, persists across death and ignores old shots`, () => {
-    const g = createGame(); g.api.setMode(g.api.Mode.GunGame); g.api.startGame()
+    const g = createGame(); g.api.setMode(g.api.Mode.GunGame); g.api.startGame(); g.tick(0)
     const ps = g.api.allPlayers(), attacker = ps[team === 0 ? 0 : 2], victim = ps[team === 0 ? 2 : 0]
     assert.ok(ps.every(p => p.weapon.name === 'Pistol' && g.api.getScore(p) === 1))
     const fire = () => g.shot(team)
@@ -451,7 +453,7 @@ test('mode selection is last-wins before startup, immutable after, with legacy s
     g.api.setMode(g.api.Mode.Deathmatch)
     defeat(g, 2, 0)
     assert.equal(g.state().blueScore, 0); assert.equal(g.api.getTargetScore(), 0)
-    const legacy = createGame(); legacy.mode.configure(); legacy.api.startGame()
+    const legacy = createGame(); legacy.mode.configure(); legacy.api.startGame(); legacy.tick(0)
     assert.equal(legacy.api.getTargetScore(), 10)
 })
 
@@ -462,4 +464,103 @@ test('invalid or disconnected team spawn tiles are reported', () => {
     assert.match(blocked.message, /two walkable/)
     const split = createGame(level => { for (let row = 1; row < 6; row++) level.walls[row * level.width + 4] = true })
     split.api.startGame(); assert.match(split.message, /Connect every spawn/); assert.equal(split.result, false)
+})
+
+test('mod events reach handlers registered after startup, with Portal player order', () => {
+    const g = createGame(), log = []
+    g.api.setMode(g.api.Mode.None); g.api.startGame()
+    // Registered after startGame, as a Blocks program may order them: start and first deployments wait one frame.
+    g.mod.OnGameModeStarted(() => log.push('started'))
+    g.mod.OnPlayerDeployed(p => log.push('deployed ' + g.api.getDisplayName(p)))
+    g.mod.OnPlayerDied((p, o) => log.push('died ' + g.api.getDisplayName(p) + ' by ' + g.api.getDisplayName(o)))
+    g.mod.OnPlayerEarnedKill((p, o, w) => log.push('kill ' + g.api.getDisplayName(p) + ' ' + g.api.getDisplayName(o) + ' ' + w))
+    assert.deepEqual(log, [])
+    g.tick(0)
+    assert.deepEqual(log, ['started', 'deployed YOU', 'deployed BLUE BOT', 'deployed RED 1', 'deployed RED 2'])
+    log.length = 0; g.tick(1)
+    assert.deepEqual(log, [], 'Start runs once')
+    const [human, , red] = g.api.allPlayers()
+    g.mod.DealDamage(red, 3, human)
+    assert.deepEqual(log, ['died RED 1 by YOU', 'kill YOU RED 1 -1'])
+    log.length = 0; g.mod.DealDamage(human, 3)
+    assert.deepEqual(log, ['died YOU by YOU', 'kill YOU YOU -1'], 'Self-inflicted: same player twice')
+    log.length = 0; g.tick(6000)
+    assert.deepEqual(log, ['deployed YOU', 'deployed RED 1'])
+    g.weapons.give(human, g.weapons.Kind.SMG)
+    g.shot(0); const shot = g.state().shots.at(-1).sprite
+    red.soldier.health = 1; g.overlap(shot, red.soldier.sprite)
+    assert.equal(log.at(-1), 'kill YOU RED 1 ' + g.weapons.Kind.SMG, 'Kill event reports the firing weapon category')
+})
+
+test('mod teams use Portal numbering; score, target and end map onto the engine', () => {
+    const g = createGame(); g.api.setMode(g.api.Mode.None); g.api.startGame(); g.tick(0)
+    const [human, ally, red] = g.api.allPlayers(), m = g.mod
+    assert.equal(m.GetTeam(1), g.api.teamById(0)); assert.equal(m.GetTeam(2), g.api.teamById(1))
+    assert.equal(m.GetTeam(0), null, 'Team 0 is neutral; no players belong to it')
+    assert.equal(m.GetTeam(red), m.GetTeam(2))
+    assert.ok(m.Equals(m.GetTeam(human), m.GetTeam(ally))); assert.ok(!m.Equals(human, ally))
+    m.SetGameModeScore(m.GetTeam(1), 3); m.SetGameModeScore(red, 2)
+    assert.equal(m.GetGameModeScore(g.api.teamById(0)), 3); assert.equal(m.GetGameModeScore(red), 2)
+    m.SetGameModeTargetScore(7); assert.equal(m.GetTargetScore(), 7)
+    assert.equal(m.AllPlayers().length, 4)
+    m.DealDamage(red, 3, human)
+    assert.equal(m.GetPlayerKills(human), 1); assert.equal(m.GetPlayerDeaths(red), 1)
+    assert.equal(g.state().blueScore, 3, 'No mode: kills do not score by themselves')
+    m.EndGameMode(red); assert.equal(g.result, false)
+})
+
+test('mod variables: player slots survive respawn, team and global slots are separate', () => {
+    const g = createGame(); g.api.setMode(g.api.Mode.None); g.api.startGame(); g.tick(0)
+    const [human, , red] = g.api.allPlayers(), m = g.mod
+    m.SetVariable(m.ObjectVariable(red, 4), 9)
+    assert.equal(g.api.getVariable(red, 4), 9, 'Player slots are the engine slots')
+    m.SetVariable(m.ObjectVariable(m.GetTeam(1), 4), 5)
+    m.SetVariable(m.ObjectVariable(m.GetTeam(2), 4), 6)
+    m.SetVariable(m.GlobalVariable(4), 7)
+    m.SetVariable(m.GlobalVariable(32), 99); m.SetVariable(m.ObjectVariable(human, -1), 99)
+    m.DealDamage(red, 3, human); g.tick(6000)
+    assert.ok(g.api.isAlive(red))
+    assert.deepEqual([m.ObjectVariable(red, 4), m.ObjectVariable(m.GetTeam(1), 4), m.ObjectVariable(m.GetTeam(2), 4), m.GlobalVariable(4), m.GlobalVariable(32), m.ObjectVariable(human, 4)].map(m.GetVariable), [9, 5, 6, 7, 0, 0])
+})
+
+test('mod messages fill placeholders and keep single-screen audience filtering', () => {
+    const g = createGame(); g.api.setMode(g.api.Mode.None); g.api.startGame(); g.tick(0)
+    const [human, ally, red] = g.api.allPlayers(), m = g.mod
+    assert.equal(m.Message('{} has {} of {}', human, 2, 'three'), 'YOU has 2 of three')
+    m.DisplayNotificationMessage(m.Message('ALL'))
+    m.DisplayNotificationMessage(m.Message('BOT ONLY'), ally)
+    m.DisplayNotificationMessage(m.Message('BLUE'), m.GetTeam(1))
+    m.DisplayGameModeMessage(m.Message('{} ROUND', red), m.GetTeam(2))
+    m.DisplayGameModeMessage(m.Message('{} ROUND', red))
+    const q = g.messages.inspect()
+    assert.deepEqual(Array.from(q.notifications, e => e.text), ['ALL', 'BLUE'])
+    assert.deepEqual(Array.from(q.announcements, e => e.text), ['RED 1 ROUND'])
+})
+
+test('learner rules written with mod run with no built-in mode', () => {
+    const g = createGame(), m = () => g.mod
+    g.api.setMode(g.api.Mode.None)
+    // The deathmatch rule in learner form, registered before startup as main.ts would.
+    g.mod.OnGameModeStarted(() => m().SetGameModeTargetScore(2))
+    g.mod.OnPlayerEarnedKill((player, otherPlayer) => {
+        if (m().Equals(m().GetTeam(player), m().GetTeam(otherPlayer))) return
+        const team = m().GetTeam(player)
+        m().SetGameModeScore(team, m().GetGameModeScore(team) + 1)
+        if (m().GetGameModeScore(team) >= m().GetTargetScore()) m().EndGameMode(team)
+    })
+    g.api.startGame(); g.tick(0)
+    assert.equal(g.api.getTargetScore(), 2)
+    defeat(g, 3, 0); assert.equal(g.result, undefined)
+    defeat(g, 2, 0); assert.equal(g.result, true)
+})
+
+test('weapons compatibility library gives categories and reports them', () => {
+    const g = createGame(); g.runMain(); g.tick(0)
+    const [human, ally] = g.api.allPlayers(), w = g.weapons
+    assert.equal(w.current(human), -1, 'Baseline weapon is custom')
+    w.give(human, w.Kind.Shotgun)
+    assert.equal(w.current(human), w.Kind.Shotgun); assert.equal(w.current(ally), -1)
+    assert.equal(human.weapon.damage, 3)
+    assert.deepEqual([0, 1, 2, 3, -1, 9].map(w.name), ['Pistol', 'SMG', 'Shotgun', 'Knife', 'Custom', 'Custom'])
+    assert.equal(w.kind(w.Kind.Knife), 3); assert.equal(w.kindOf(null), -1)
 })

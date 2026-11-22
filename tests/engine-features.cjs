@@ -139,4 +139,91 @@ async function checkModes(ctx) {
     assert.equal(await ctx.editor.evaluate(() => pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false).some(b => b.type === 'deathmatch_configure')), true)
     console.log('PASS: three-way mode enum round-trips, no-mode runtime and legacy deathmatch block retained')
 }
-module.exports = { variant, checkMessages, checkWeapons, checkModes }
+// A learner-style program using only Mod/Weapons blocks, with no built-in mode.
+// It is appended AFTER startGame(), so it also proves registration order does not matter.
+const learnerRules = `
+mod.OnGameModeStarted(function () {
+    mod.SetGameModeTargetScore(3)
+    mod.DisplayNotificationMessage(mod.Message("FIRST TEAM TO {} WINS", mod.GetTargetScore()))
+})
+mod.OnPlayerDeployed(function (eventPlayer) {
+    mod.SetVariable(mod.ObjectVariable(eventPlayer, 0), mod.GetVariable(mod.ObjectVariable(eventPlayer, 0)) + 1)
+})
+mod.OnPlayerEarnedKill(function (eventPlayer, eventOtherPlayer, eventWeapon) {
+    if (!(mod.Equals(mod.GetTeam(eventPlayer), mod.GetTeam(eventOtherPlayer)))) {
+        mod.SetGameModeScore(mod.GetTeam(eventPlayer), mod.GetGameModeScore(mod.GetTeam(eventPlayer)) + 1)
+        weapons.give(eventPlayer, weapons.Kind.SMG)
+        mod.DisplayGameModeMessage(mod.Message("{} SCORES WITH {}", eventPlayer, weapons.name(eventWeapon)), mod.GetTeam(1))
+        if (mod.GetGameModeScore(mod.GetTeam(eventPlayer)) >= mod.GetTargetScore()) {
+            mod.EndGameMode(eventPlayer)
+        }
+    }
+})
+mod.OnPlayerDied(function (eventPlayer, eventOtherPlayer) {
+    mod.Wait(1)
+    mod.SetVariable(mod.GlobalVariable(1), mod.GetPlayerDeaths(eventPlayer))
+})
+`
+async function checkMod(ctx) {
+    await variant(ctx, learnerRules, 'None')
+    await ctx.sim.waitForFunction(() => team.get('targetScore') === 3, { timeout: 5000 })
+    const started = await ctx.sim.evaluate(() => ({
+        deployments: team.get('players').data.map(p => p.fields.variables.data[0]),
+        notifications: team.get('notifications').data.map(e => e.fields.text)
+    }))
+    assert.deepEqual(started.deployments, [1, 1, 1, 1], 'Initial deployment reached handlers registered after startGame')
+    assert.deepEqual(started.notifications, ['FIRST TEAM TO 3 WINS'])
+    // One real elimination by the human with the baseline (custom) weapon.
+    await ctx.sim.evaluate(() => {
+        team.freezeBots()
+        team.slots().forEach((s, i) => { if (s.sprite) team.place(i, i === 1 ? 24 : 136, 88) })
+        team.place(0, 40, 24); team.place(2, 88, 24)
+        team.slots()[2].health = 1; team.slots()[0].nextShotAt = 0
+    })
+    await ctx.button(5, true)
+    await ctx.sim.waitForFunction(() => team.get('blueScore') === 1, { timeout: 5000 })
+    await ctx.button(5, false)
+    const scored = await ctx.sim.evaluate(() => ({
+        weapon: team.get('players').data[0].fields.weapon.fields.name,
+        announcements: team.get('announcements').data.map(e => e.fields.text),
+        finished: team.get('finished')
+    }))
+    assert.equal(scored.weapon, 'SMG')
+    assert.deepEqual(scored.announcements, ['YOU SCORES WITH Custom'])
+    assert.equal(scored.finished, false)
+    await ctx.screenshot('mod-rules.png')
+    // Died handler waits 1 s without blocking the game, then records the victim's deaths.
+    await ctx.sim.waitForFunction(() => {
+        const g = team.get('globalSlots'); return g && g.data && g.data[1] === 1
+    }, { timeout: 4000 })
+    await ctx.sim.waitForFunction(() => team.slots()[2].sprite && team.get('players').data[2].fields.variables.data[0] === 2, { timeout: 8000 })
+
+    // Learner program round trip: TS -> Blocks (edit) -> TS -> compile -> run.
+    await ctx.command('switchblocks'); await ctx.sleep(1800)
+    const blocks = await ctx.editor.evaluate(() => {
+        const all = pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false)
+        const target = all.find(b => b.type === 'mod_set_target_score').getInputTargetBlock('score')
+        target.setFieldValue('2', 'NUM')
+        return { types: [...new Set(all.map(b => b.type))], categories: ['Mod', 'Weapons'].map(c => document.body.innerText.includes(c)) }
+    })
+    for (const type of ['mod_on_game_mode_started', 'mod_on_player_deployed', 'mod_on_player_earned_kill', 'mod_on_player_died',
+        'mod_set_target_score', 'mod_get_target_score', 'mod_set_game_mode_score', 'mod_get_game_mode_score', 'mod_get_team', 'mod_equals',
+        'mod_end_game_mode', 'mod_object_variable', 'mod_global_variable', 'mod_set_variable', 'mod_get_variable', 'mod_get_player_deaths',
+        'mod_message', 'mod_display_notification_message', 'mod_display_game_mode_message', 'mod_wait', 'weapons_give', 'weapons_name'])
+        assert.ok(blocks.types.includes(type), 'Missing block ' + type)
+    assert.ok(!blocks.types.some(t => /javascript|typescript/.test(t)), 'No grey JavaScript blocks: ' + blocks.types.join(','))
+    assert.deepEqual(blocks.categories, [true, true])
+    await ctx.screenshot('mod-blocks.png')
+    await ctx.sleep(1200); await ctx.command('switchjavascript')
+    await ctx.editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('mod.SetGameModeTargetScore(2)')), { timeout: 10000 })
+    const regenerated = await ctx.editor.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
+    for (const call of ['mod.OnPlayerEarnedKill(function (eventPlayer, eventOtherPlayer, eventWeapon)', 'mod.OnPlayerDied(function (eventPlayer, eventOtherPlayer)',
+        'mod.GetTeam(1)', 'weapons.give(eventPlayer, weapons.Kind.SMG)', 'mod.Wait(1)', 'shooter.setMode(shooter.Mode.None)'])
+        assert.ok(regenerated.includes(call), 'Regenerated TypeScript keeps ' + call + '\n' + regenerated)
+    await ctx.command('stopsimulator'); await ctx.command('startsimulator'); await ctx.sleep(1000)
+    ctx.sim = await ctx.page.waitForFrame(f => f.url().includes('---simulator'))
+    await teamSimulator.install(ctx.sim)
+    await ctx.sim.waitForFunction(() => team.get('targetScore') === 2, { timeout: 5000 })
+    console.log('PASS: learner mod rules (no mode) run, wait without blocking, and round-trip through Mod/Weapons Blocks with no grey blocks')
+}
+module.exports = { variant, checkMessages, checkWeapons, checkModes, checkMod, learnerRules }

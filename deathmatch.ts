@@ -1,24 +1,25 @@
-// First team to ten is a mode rule; scores live in the engine.
+// Worked example: first team to ten, written with the Portal-shaped `mod` layer.
 //% color=#C75050 block="Deathmatch"
 namespace deathmatch {
-    let configured = false
-
     /** Select the original first-team-to-ten rules before starting the engine. */
     //% blockId=deathmatch_configure block="use deathmatch rules"
     export function configure(): void {
         shooter.setMode(shooter.Mode.Deathmatch)
     }
 
-    // Called by engine startup, after the final mode selection and before event registration closes.
-    export function initialize(): void {
-        if (configured) return
-        configured = true
-        shooter.setTargetScore(10)
-        shooter.onElimination(function (attacker, victim) {
-            if (attacker == victim || attacker.team == victim.team) return
-            const team = shooter.getTeam(attacker)
-            shooter.setScore(team, shooter.getScore(team) + 1)
-            if (shooter.getScore(team) >= shooter.getTargetScore()) shooter.endMatch(team)
+    function rules(): void {
+        mod.OnGameModeStarted(function () {
+            mod.SetGameModeTargetScore(10)
+        })
+        mod.OnPlayerEarnedKill(function (eventPlayer, eventOtherPlayer) {
+            // Self-inflicted and friendly eliminations score nothing.
+            if (mod.Equals(eventPlayer, eventOtherPlayer)) return
+            const team = mod.GetTeam(eventPlayer)
+            if (mod.Equals(team, mod.GetTeam(eventOtherPlayer))) return
+            mod.SetGameModeScore(team, mod.GetGameModeScore(team) + 1)
+            if (mod.GetGameModeScore(team) >= mod.GetTargetScore()) mod.EndGameMode(team)
         })
     }
+
+    shooter.registerMode(shooter.Mode.Deathmatch, rules)
 }

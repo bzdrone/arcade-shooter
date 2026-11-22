@@ -97,6 +97,11 @@ async function main() {
         async function button(key, down) {
             await sim.evaluate(({ key, down }) => pxsim.runtime.board.handleKeyEvent(key, down), { key, down })
         }
+        if (process.argv.includes('--mod')) {
+            await require('./engine-features.cjs').checkMod({ sim, page, command, editor, text, button, sleep,
+                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
+            return
+        }
         if (process.argv.includes('--modes')) {
             await require('./engine-features.cjs').checkModes({ sim, page, command, editor, text, button, sleep,
                 screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
@@ -298,6 +303,7 @@ async function main() {
             await features.checkMessages(ctx)
             await features.checkWeapons(ctx)
             await features.checkModes(ctx)
+            await features.checkMod(ctx)
         }
         assert.deepEqual(pageErrors, [], 'No uncaught browser errors')
         fs.writeFileSync(path.join(artifacts, 'result.json'), JSON.stringify({

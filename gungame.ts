@@ -1,42 +1,42 @@
-// Individual ladders; the player finishing the last weapon wins for their team.
+// Worked example: individual weapon ladders, written with the Portal-shaped `mod`
+// layer and the weapons compatibility library. Finishing the ladder wins for your team.
 namespace gungame {
-    let configured = false
     const levelSlot = 0
+    const ladder = [weapons.Kind.Pistol, weapons.Kind.SMG, weapons.Kind.Shotgun, weapons.Kind.Knife]
 
-    function weaponFor(level: number): shooter.Weapon {
-        if (level == 1) return weapons.create(weapons.Kind.SMG)
-        if (level == 2) return weapons.create(weapons.Kind.Shotgun)
-        if (level >= 3) return weapons.create(weapons.Kind.Knife)
-        return weapons.create(weapons.Kind.Pistol)
+    function level(player: shooter.Player): number {
+        return mod.GetVariable(mod.ObjectVariable(player, levelSlot))
     }
 
     function equip(player: shooter.Player): void {
-        const level = shooter.getVariable(player, levelSlot)
-        shooter.giveWeapon(player, weaponFor(level))
-        shooter.setScore(player, level + 1)
-        const team = shooter.getTeam(player)
-        shooter.setScore(team, Math.max(shooter.getScore(team), level + 1))
+        weapons.give(player, ladder[level(player)])
+        mod.SetGameModeScore(player, level(player) + 1)
+        const team = mod.GetTeam(player)
+        mod.SetGameModeScore(team, Math.max(mod.GetGameModeScore(team), level(player) + 1))
     }
 
-    // Author-facing setup; no learner event/action Blocks in this slice.
-    export function initialize(): void {
-        if (configured) return
-        configured = true
-        shooter.setTargetScore(4)
-        shooter.onDeployed(function (player) { equip(player) })
-        shooter.onElimination(function (attacker, victim, weapon) {
-            if (attacker == victim || shooter.getTeam(attacker) == shooter.getTeam(victim)) return
-            const level = shooter.getVariable(attacker, levelSlot)
-            // Late shots from earlier weapons still deal damage/credit kills, but cannot skip levels.
-            if (!weapon || weapon.name != weaponFor(level).name) return
-            if (level >= 3) {
-                shooter.endMatch(attacker)
+    function rules(): void {
+        mod.OnGameModeStarted(function () {
+            mod.SetGameModeTargetScore(ladder.length)
+            mod.DisplayNotificationMessage(mod.Message("GUN GAME: PISTOL > SMG > SHOTGUN > KNIFE"))
+        })
+        mod.OnPlayerDeployed(function (eventPlayer) {
+            equip(eventPlayer)
+        })
+        mod.OnPlayerEarnedKill(function (eventPlayer, eventOtherPlayer, eventWeapon) {
+            if (mod.Equals(eventPlayer, eventOtherPlayer) || mod.Equals(mod.GetTeam(eventPlayer), mod.GetTeam(eventOtherPlayer))) return
+            const current = level(eventPlayer)
+            // Arcade shots fly slowly: a late shot from an earlier weapon cannot skip a level.
+            if (eventWeapon != ladder[current]) return
+            if (current >= ladder.length - 1) {
+                mod.EndGameMode(eventPlayer)
                 return
             }
-            shooter.setVariable(attacker, levelSlot, level + 1)
-            equip(attacker) // Applies even if the attacker is waiting to respawn.
-            messages.announce(messages.text("{}: {} LEVEL {}", attacker, attacker.weapon.name, level + 2))
+            mod.SetVariable(mod.ObjectVariable(eventPlayer, levelSlot), current + 1)
+            equip(eventPlayer) // Applies even if the player is waiting to respawn.
+            mod.DisplayGameModeMessage(mod.Message("{}: {} LEVEL {}", eventPlayer, weapons.name(ladder[current + 1]), current + 2))
         })
-        messages.notify("GUN GAME: PISTOL > SMG > SHOTGUN > KNIFE")
     }
+
+    shooter.registerMode(shooter.Mode.GunGame, rules)
 }

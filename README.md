@@ -61,7 +61,7 @@ The author-side export/import command and local artifact location are documented
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
-2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, deathmatch.ts, gungame.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
+2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, messages.ts, weapons.ts, mod.ts, deathmatch.ts, gungame.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
 3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
 4. Run the simulator and check the Blocks customization surface and tilemap editor.
 
@@ -76,20 +76,22 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - main.ts: learner-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
-- deathmatch.ts: first-team-to-ten rules over engine-owned team scores.
-- gungame.ts: individual weapon ladders (pistol → SMG → shotgun → knife); the player who finishes wins for their team.
-- weapons.ts: four small named presets (pistol, SMG, shotgun, knife), not a real inventory simulation.
+- mod.ts: the Portal-shaped scripting layer (Mod Blocks category): events, score, teams, variables, messages and wait under Battlefield 6 Portal's names.
+- deathmatch.ts: first-team-to-ten rules, written with `mod` as a worked example.
+- gungame.ts: individual weapon ladders (pistol → SMG → shotgun → knife), written with `mod`; the player who finishes wins for their team.
+- weapons.ts: weapon compatibility library (Weapons Blocks category): four named categories, not a real inventory simulation.
 - messages.ts: non-blocking notification/announcement queues and single-screen audience filtering.
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
 - tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
+- portal/ and tools/check-portal.cjs: author-only Battlefield 6 Portal port of gun game, its strings file, and a type check against a local Portal SDK. Not part of the PNG.
 - pxt.json: Arcade project manifest.
 - tests/gameplay.test.cjs / tests/pathing.test.cjs: dependency-free host-side logic and route checks; run with `node --test tests/gameplay.test.cjs tests/pathing.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
 - tests/editor-smoke.cjs / tests/team-simulator.cjs: real-editor browser checks, controlled 2v2 combat/respawn/endgame checks, and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
 - tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
-- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and how the planned Portal-shaped mod layer, weapon and message libraries map onto it.
+- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Portal-shaped `mod` layer, and the porting checklist.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
 - [Development plan](PLAN.md): agreed next steps and development status.
@@ -102,11 +104,24 @@ For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` mak
 
 Match state belongs to the engine: `getScore`/`setScore` accept a `Team | Player`; `getTargetScore`/`setTargetScore` control the target. Deathmatch increments only team scores and supplies the ten-point rule. `shooter.endMatch(teamOrPlayer)` accepts either value; a player winner wins for their team. `teamById(0/1)` and `getTeam(player)` return team values. `allPlayers()` returns a copy of the roster; `isHuman`, `isAlive`, `getEliminations`, and `getDeaths` provide player queries. `onDeployed` fires once per successful spawn, including initial deployment after map validation. Register events before startup.
 
-`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Learner-facing player/action/event Blocks are planned, not implemented yet.
+`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Learners script rules through the `mod` layer below rather than these engine calls.
 
 For mode messages, `messages.text("{} reached level {}", player, level)` substitutes up to three placeholders (strings, numbers, or players by display name). Send it using `messages.notify(text, target?)` or `messages.announce(text, target?)`. Omitted target means everyone; a player/team target uses the same union types as match state. On this single screen, only everyone/human/blue-team messages are shown. Notifications last 1.8 seconds, announcements 2.4 seconds, with separate queues capped at eight entries each. They never pause play; overflow removes the oldest waiting entry, preserving the current message.
 
 `createWeapon` also accepts optional range (pixels), projectile color (0 = team color, 1–15 = palette), and display name. Range is capped at speed × 2.5 seconds; wall/off-screen cleanup still applies. `weapons.create(weapons.Kind.Pistol/SMG/Shotgun/Knife)` returns a fresh preset. Pistol matches baseline; SMG fires faster at medium range, shotgun fires one heavy short-range shot (no spread), and knife is a very short-range shot using existing combat rules. Bots keep approaching until their current weapon can reach the target. There is no sniper or separate rifle preset.
+
+## Portal-shaped mod layer
+
+The **Mod** and **Weapons** Blocks categories are the learner scripting surface: event handlers, functions and per-player variables, using Battlefield 6 Portal's names so the ideas transfer. Choose **no mode** to write rules from scratch; [lesson 2](lessons/02-mod-rules.md) walks through it. `deathmatch.ts` and `gungame.ts` are complete modes written the same way.
+
+- Events: `mod.OnGameModeStarted`, `OnPlayerDeployed(eventPlayer)`, `OnPlayerDied(eventPlayer, eventOtherPlayer)` (eventPlayer died) and `OnPlayerEarnedKill(eventPlayer, eventOtherPlayer, eventWeapon)` (eventPlayer eliminated eventOtherPlayer; `eventWeapon` is a weapon category or -1). Self-inflicted eliminations pass the same player twice. Start and first deployments arrive on the first frame, so event blocks may be placed anywhere.
+- Actions: `SetGameModeScore` / `GetGameModeScore` (team or player), `SetGameModeTargetScore`, `GetTargetScore`, `EndGameMode` (team or player; a player wins for their team), `GetTeam` (a player, or **1** = blue / **2** = red as in Portal), `Equals`, `AllPlayers`, `GetPlayerKills`, `GetPlayerDeaths`, `DealDamage`.
+- Variables: `SetVariable` / `GetVariable` on `ObjectVariable(player or team, 0–31)` or `GlobalVariable(0–31)`. Player slots are the engine's slots and survive respawn.
+- Messages: `Message(text, a?, b?, c?)` with `{}` placeholders, shown with `DisplayNotificationMessage` or `DisplayGameModeMessage` (large centred), optionally to a player or team.
+- `Wait(seconds)` pauses only the current handler.
+- Weapons: `weapons.give(player, kind)`, `weapons.current(player)`, `weapons.name(kind)`.
+
+The layer is Portal-shaped, not Portal-compatible. [PORTAL.md](PORTAL.md) lists the fix-ups to move a mode to Portal, and `portal/gungame.ts` is a worked port.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
 
