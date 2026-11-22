@@ -48,4 +48,4 @@ Teams are numbered like Portal: **team 1** is blue, **team 2** is red.
 
 ## Toward Portal
 
-A Portal script uses these same names. Moving a rule there takes a short list of changes, such as writing events as `export function OnPlayerEarnedKill(...)` and keeping message text in a strings file. Your teacher has the checklist.
+Portal scripts use these same names and the same ideas: events that run when something happens, and variables that remember something about each player. The code looks a little different there, but what you practised here carries over.

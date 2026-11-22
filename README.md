@@ -1,6 +1,6 @@
 # Arcade Shooter
 
-A development repository for a MakeCode Arcade learning project about gameplay concepts that transfer to FPS modding.
+A development repository for a MakeCode Arcade learning project: a gentle on-ramp to scripting game modes in Battlefield 6 Portal.
 
 **To play:** download `arcade-shooter.png` and `INTRO.md` from the newest version on the [Releases page](https://github.com/bzdrone/arcade-shooter/releases), then import the PNG at https://arcade.makecode.com/. You don't need to clone this repository.
 
@@ -84,14 +84,14 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
 - tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
-- portal/ and tools/check-portal.cjs: author-only Battlefield 6 Portal port of gun game, its strings file, and a type check against a local Portal SDK. Not part of the PNG.
+- portal/ and tools/check-portal.cjs: an author-side experiment porting gun game to Portal, with a type check against a local Portal SDK. Not part of the PNG or the learner path.
 - pxt.json: Arcade project manifest.
 - tests/gameplay.test.cjs / tests/pathing.test.cjs: dependency-free host-side logic and route checks; run with `node --test tests/gameplay.test.cjs tests/pathing.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
 - tests/editor-smoke.cjs / tests/team-simulator.cjs: real-editor browser checks, controlled 2v2 combat/respawn/endgame checks, and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
 - tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
 - lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
 - [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
-- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Portal-shaped `mod` layer, and the porting checklist.
+- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Portal-shaped `mod` layer.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
 - [Design and open work](PLAN.md): architecture, design decisions, releases and what is not yet verified.
@@ -121,7 +121,7 @@ The **Mod** and **Weapons** Blocks categories are the learner scripting surface:
 - `Wait(seconds)` pauses only the current handler.
 - Weapons: `weapons.give(player, kind)`, `weapons.current(player)`, `weapons.name(kind)`.
 
-The layer is Portal-shaped, not Portal-compatible. [PORTAL.md](PORTAL.md) lists the fix-ups to move a mode to Portal, and `portal/gungame.ts` is a worked port.
+The layer is Portal-shaped, not Portal-compatible: the ideas and names carry over to Portal, not the code.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
 

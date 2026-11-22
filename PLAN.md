@@ -17,7 +17,7 @@ Why the project is shaped the way it is, and what is still open. Usage is in [RE
    - **Messages** (in `mod`): `Message` with `{}` placeholders, notifications and large announcements, drawn as timed, non-blocking HUD queues instead of Portal's widget UI.
 4. **Modes** (`deathmatch.ts`, `gungame.ts`): written against `mod` and `weapons`, so they double as worked examples that read almost like Portal scripts. "No mode" leaves the rules to the learner.
 
-The mod layer is **Portal-shaped, not Portal-compatible**. Porting a mode takes a short, predictable list of fix-ups (PORTAL.md); one source file shared verbatim by both platforms is not a goal, and there is no conversion tooling.
+The mod layer is **Portal-shaped, not Portal-compatible**: the ideas and names carry over, not the code. Porting modes is not a goal. An author-side experiment porting gun game (`portal/`, with its fix-up list in PORTAL.md) checks that the shape is close enough; there is no conversion tooling.
 
 ## Design decisions
 
@@ -28,7 +28,7 @@ The mod layer is **Portal-shaped, not Portal-compatible**. Porting a mode takes 
 - **Messages:** two kinds (short notifications and large announcements). The bottom health/respawn line stays engine-only. On the single screen, messages aimed only at bots or the red team are dropped.
 - **mod layer:** Portal team numbering (team 1 blue, team 2 red); everything in `mod`, with no separate `modlib` namespace; plain MakeCode event blocks with draggable parameters named as in Portal (`eventPlayer`, `eventOtherPlayer`, `eventWeapon`). Game start and initial deployments are delivered on the first frame, so handlers placed anywhere in a program receive them.
 - **Blocks:** keep existing block IDs stable; only configuration, mode selection, Mod and Weapons blocks are learner-facing.
-- **Portal-side files** live in `portal/`, outside the PNG manifest.
+- **The Portal port experiment** lives in `portal/`, outside the PNG manifest and the learner path.
 
 ## Releases
 
@@ -38,12 +38,11 @@ The mod layer is **Portal-shaped, not Portal-compatible**. Porting a mode takes 
 
 ## Not yet verified
 
-- **Portal:** `portal/gungame.ts` passes the SDK 2.1.2.0 type check but has never run in Portal. Unknown: player `ObjectVariable` slots without editor declarations, weapon swap feel, how numbers display in messages.
+- **Portal port experiment:** `portal/gungame.ts` passes the SDK 2.1.2.0 type check but has never run in Portal. Unknown: player `ObjectVariable` slots without editor declarations, weapon swap feel, how numbers display in messages.
 - **Learners:** neither lesson has been tried with a learner. The published baseline was playtested by the author and played well; that is not learner evidence.
 - **Balance:** no natural full gun-game match has been played. The human's speed advantage matters more with individual ladders (kiting bots, especially at the knife stage), and blue's team win often depends on the human. Tune only from feedback.
 - Browser checks use synthetic input and controlled placements, not physical keyboards or natural matches.
 
 ## Possible next work
 
-- A Portal playtest of the gun game port.
 - A learner trial of lessons 1 and 2, tuning from what is observed.
