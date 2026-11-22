@@ -2,7 +2,7 @@
 
 A development repository for a MakeCode Arcade learning project: a gentle on-ramp to scripting game modes in Battlefield 6 Portal.
 
-**To play:** download `arcade-shooter.png` and `INTRO.md` from the newest version on the [Releases page](https://github.com/bzdrone/arcade-shooter/releases), then import the PNG at https://arcade.makecode.com/. You don't need to clone this repository.
+**Start here:** read the [learner introduction](INTRO.md). New to MakeCode Arcade? Work through a few beginner tutorials on [its home page](https://arcade.makecode.com/) first. Then download `arcade-shooter.png` from the newest version on the [Releases page](https://github.com/bzdrone/arcade-shooter/releases) and follow the introduction to play and change one number. You don't need to clone this repository. The handouts here may be newer than those attached to a published release.
 
 ## Audience and artifact
 
@@ -22,7 +22,7 @@ The example is a **two-versus-two top-down soldier match**: you and one blue bot
 - Each elimination earns the shooter's team one point. The **first team to 10** wins. The HUD shows both scores and your health/respawn status; the result screen names the winning team. Press a button there to restart.
 - An eliminated soldier—including you—waits **five seconds**, then returns with full health at a clear spawn tile for its own team. If all its team's points are occupied, it waits rather than spawning on someone. There are always four soldier slots, never a growing swarm.
 
-Learning activities use a predict → change → test → explain loop. Weapon settings apply to **both teams**, exposing damage, fire interval, and projectile speed. Soldier settings expose shared health, bot speed, and respawn delay.
+The learner path starts with a few MakeCode Arcade beginner tutorials, then a short play session and one damage change in the existing Blocks workspace. Activity 1 stays in Blocks and introduces the other weapon settings one at a time; writing game-mode rules is a later activity, not part of the first session. Learning activities use a predict → change → test → explain loop. Weapon settings apply to **both teams**, exposing damage, fire interval, and projectile speed. Soldier settings expose shared health, bot speed, and respawn delay.
 
 These are transferable shooter concepts, not a universal FPS modding API. The game is a local simulation with no networking or external assets; it does not implement first-person rendering or client/server authority.
 
@@ -93,7 +93,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
 - [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Portal-shaped `mod` layer.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
-- [Release preparation](RELEASING.md): stage the validated PNG and learner handouts for a versioned preview release, without publishing.
+- [Release preparation](RELEASING.md): stage just the validated PNG and introduction for download, with supporting records kept separately, without publishing.
 - [Design and open work](PLAN.md): architecture, design decisions, releases and what is not yet verified.
 
 Baseline settings and mode selection apply before startGame(); later settings calls are ignored. **set shooter mode** chooses deathmatch (the baseline), gun game, or no mode; the last selection before startup wins. The older **use deathmatch rules** block still works and selects deathmatch. With no mode, the engine still runs combat and respawns but does not score eliminations or end a match automatically.

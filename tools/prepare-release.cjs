@@ -1,4 +1,4 @@
-// Stage the previously verified PNG and separate handouts. No dependencies,
+// Stage two learner downloads; retain supporting files as local evidence. No dependencies,
 // installs, network access, Git changes, tagging, or publication.
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -54,16 +54,24 @@ const releaseManifest = {
 files['release-manifest.json'] = Buffer.from(JSON.stringify(releaseManifest, null, 2) + '\n')
 files.SHA256SUMS = Buffer.from(Object.entries(files).map(([name, bytes]) => `${hash(bytes)}  ${name}`).join('\n') + '\n')
 const output = path.join(root, 'local/releases', version)
-// Reject stale/unexpected assets instead of silently uploading old leftovers.
+const evidence = path.join(root, 'local/releases', `${version}-evidence`)
+const learnerAssets = ['arcade-shooter.png', 'INTRO.md']
+for (const name of learnerAssets) assert.ok(files[name], `Missing learner asset: ${name}`)
+// Reject old staging layouts rather than silently leaving extra upload candidates.
 if (fs.existsSync(output)) {
-    for (const name of fs.readdirSync(output)) assert.ok(name in files || name === 'release-notes.md', `Unexpected existing release asset: ${name}`)
+    for (const name of fs.readdirSync(output)) assert.ok(learnerAssets.includes(name) || name === 'release-notes.md',
+        `Unexpected existing release asset: ${name}; move the old staging directory aside and rerun`)
 }
 fs.mkdirSync(output, { recursive: true })
-for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(output, name), bytes)
+fs.mkdirSync(evidence, { recursive: true })
+// Keep the complete preparation record, including license and checksums, locally.
+for (const [name, bytes] of Object.entries(files)) fs.writeFileSync(path.join(evidence, name), bytes)
+for (const name of learnerAssets) fs.writeFileSync(path.join(output, name), files[name])
 fs.writeFileSync(path.join(output, 'release-notes.md'), notes)
 console.log(`Prepared ${version} in ${output}`)
 console.log(`Game source: ${gameCommit}`)
 console.log(`PNG SHA-256: ${candidate.pngSha256}`)
 console.log(`Working tree dirty: ${releaseManifest.workingTreeDirty}; commit approved preparation changes, then rerun before publishing.`)
-console.log(`Upload the ${Object.keys(files).length} assets listed in releases/${version}.md; use release-notes.md as the release body, not an asset.`)
+console.log(`Upload only: ${learnerAssets.join(', ')}; use release-notes.md as the release body, not an asset.`)
+console.log(`Local supporting records (not release attachments): ${evidence}`)
 console.log('Nothing committed, tagged, pushed, or published.')

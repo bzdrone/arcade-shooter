@@ -17,5 +17,5 @@
         "tilemap.g.ts",
         "tilemap.g.jres"
     ],
-    "preferredEditor": "tsprj"
+    "preferredEditor": "blocksprj"
 }

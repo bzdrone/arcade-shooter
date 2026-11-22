@@ -31,7 +31,9 @@ async function main() {
             transfer.items.add(new File([data], 'arcade-shooter.png', { type: 'image/png' }))
             document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }))
         }, bytes.toString('base64'))
-        await page.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.startGame()')), { timeout: 60000 })
+        await page.waitForFunction(() => document.querySelector('.blocklySvg')?.getBoundingClientRect().width > 0 && /start\s+shooter/.test(document.body.innerText), { timeout: 60000 })
+        await page.screenshot({ path: path.join(evidence, 'hosted-initial-blocks.png') })
+        console.log('PASS: hosted PNG import opens directly in Blocks without switching tabs')
         // Allow the import's editor transition to finish before clicking Play.
         await new Promise(resolve => setTimeout(resolve, 3000))
         const play = await page.$('.play-button.play')
@@ -43,9 +45,15 @@ async function main() {
             console.log('HOSTED ERRORS', errors)
             throw error
         })
+        // Inspect generated TypeScript only after recording the initial Blocks experience.
+        await page.evaluate(() => Array.from(document.querySelectorAll('span,div')).find(e => e.textContent.trim() === 'JavaScript' && !e.children.length).click())
+        await page.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.startGame()')), { timeout: 30000 })
         const main = await page.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
         assert.match(main, /shooter.setWeapon\(1,\s*750,\s*80\)/)
         assert.match(main, /shooter.setSoldiers\(3,\s*10,\s*5000\)/)
+        // A Monaco model can exist before the tab transition has completed.
+        await page.waitForFunction(() => document.querySelector('.monaco-editor')?.getBoundingClientRect().width > 0, { timeout: 30000 })
+        await new Promise(resolve => setTimeout(resolve, 1500))
         await teamSimulator.install(sim)
         const soldiers = (await sim.evaluate(() => team.snapshot())).soldiers
         assert.equal(soldiers.filter(s => s.team === 0 && s.alive).length, 2)
@@ -108,7 +116,7 @@ async function main() {
         }
         assert.deepEqual(errors, [])
         const result = { file, sha256: createHash('sha256').update(bytes).digest('hex'), versions,
-            checks: ['Fresh hosted-editor PNG import', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter settings/start and mode selector blocks, no grey JavaScript'],
+            checks: ['Fresh hosted-editor PNG import opens directly in Blocks', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter settings/start and mode selector blocks, no grey JavaScript'],
             tilemapEditor: process.argv.includes('--tilemap'),
             gunGame: process.argv.includes('--modes'),
             limitations: 'Not full gameplay, physical keyboard, lesson, or hosted settings-change validation.' }

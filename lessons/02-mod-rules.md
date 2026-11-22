@@ -1,5 +1,7 @@
 # Lesson 2: Write your own game mode rules
 
+This is a later scripting activity, not the next step for a first-time Arcade user. Start with **INTRO.md** and **01-weapon-tuning.md**. Before trying this lesson, get comfortable adding blocks and using events (instructions that run when something happens) in MakeCode Arcade's beginner tutorials. This lesson combines several ideas; you do not need it to enjoy or customize the shooter.
+
 ## Goal
 
 Write the scoring rule of a game mode yourself with **event handlers**, **functions** and **per-player variables**. The blocks use the same names and event shapes as Battlefield 6 Portal's `mod` scripting, so the ideas carry over.

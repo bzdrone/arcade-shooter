@@ -6,7 +6,7 @@ Why the project is shaped the way it is, and what is still open. Usage is in [RE
 
 - A TypeScript-first MakeCode Arcade top-down shooter that teaches gameplay scripting concepts, not a universal FPS modding API.
 - Arcade is a **short ramp to Battlefield 6 Portal**. Learners stay long enough to understand scripting a game mode with **event handlers, functions and per-player variables**, then move to Portal. Arcade-side polish that does not serve that path (balance tuning, more maps, more weapons, demotion) is out of scope unless asked for.
-- The repository is the authoring environment. Learners receive an importable **embedded-source project PNG** plus separate Markdown handouts; lesson Markdown is not embedded in the PNG.
+- The repository is the authoring environment. Future releases offer just two learner downloads: the importable **embedded-source project PNG** and **INTRO.md**, which links to optional activities online. License and activity files stay in the repository; checksums and build records stay in local release evidence. Instructions are not embedded in the PNG. Existing published releases retain their original attachments.
 
 ## Architecture
 
@@ -28,6 +28,7 @@ The mod layer is **Portal-shaped, not Portal-compatible**: the ideas and names c
 - **Messages:** two kinds (short notifications and large announcements). The bottom health/respawn line stays engine-only. On the single screen, messages aimed only at bots or the red team are dropped.
 - **mod layer:** Portal team numbering (team 1 blue, team 2 red); everything in `mod`, with no separate `modlib` namespace; plain MakeCode event blocks with draggable parameters named as in Portal (`eventPlayer`, `eventOtherPlayer`, `eventWeapon`). Game start and initial deployments are delivered on the first frame, so handlers placed anywhere in a program receive them.
 - **Blocks:** keep existing block IDs stable; only configuration, mode selection, Mod and Weapons blocks are learner-facing.
+- **First experience:** learners new to MakeCode Arcade work through a few beginner tutorials, then practice saving a tutorial game as a project PNG and importing it again, checking that their blocks and a recognizable change survive. The shooter introduction focuses on playing and changing damage in an existing block, with no code editing or mode selection. Activity 1 introduces other weapon settings one at a time in Blocks. Game-mode scripting comes later; the first session does not require finishing a match or reading the engine source.
 - **The Portal port experiment** lives in `portal/`, outside the PNG manifest and the learner path.
 
 ## Releases
@@ -45,4 +46,7 @@ The mod layer is **Portal-shaped, not Portal-compatible**: the ideas and names c
 
 ## Possible next work
 
-- A learner trial of lessons 1 and 2, tuning from what is observed.
+- A beginner trial of the tutorial → import → play → change-one-number path. Observe where help is needed, whether the learner can find the existing block and apply the change, and whether they can explain the result.
+- An annotated workspace image highlighting the damage field and simulator stop/Play controls, captured from the actual editor.
+- Break lesson 2 into smaller scripting activities, beginning with one event and one visible action before introducing scoring, conditions, and per-player variables.
+- A learner trial of the later activities, tuning from what is observed.

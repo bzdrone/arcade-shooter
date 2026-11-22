@@ -106,9 +106,9 @@ node tests/png-hosted.cjs --tilemap --modes
 
 The first command exports the **baseline before test edits**, using Arcade's simulator-camera action. Although its tooltip says "Take Screenshot", this target's `saveAsPNG` setting routes that action through the official `saveProjectAsPNGAsync` exporter, embedding compressed project source. The script asserts that setting, decodes the resulting PNG using PXT, and compares every manifest-listed source file to the baseline. It does not construct a substitute PNG or re-encode the exported bytes.
 
-The original downloaded bytes are copied to ignored `local/exports/arcade-shooter.png`. A fresh isolated browser context receives only that file through the editor's drag/drop importer. It checks 2v2 startup, custom Blocks, and a damage edit that round-trips and takes effect after stop/start compilation. `local/exports/validation.json` records the checksum and checks. Changing settings in the test does not modify the exported baseline.
+The original downloaded bytes are copied to ignored `local/exports/arcade-shooter.png`. The exporter asserts `preferredEditor: blocksprj` in the embedded manifest. A fresh isolated browser context receives only that file through the editor's drag/drop importer. Before any tab-switch command, it verifies that the Blocks workspace is visible. It then checks 2v2 startup, custom Blocks, and a damage edit that round-trips and takes effect after stop/start compilation. `local/exports/validation.json` records the checksum and checks. Changing settings in the test does not modify the exported baseline.
 
-The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, presses Play if needed, and checks simulator startup and all four custom Blocks without grey JavaScript. With `--modes`, it switches the imported project's dropdown to gun game in Blocks, recompiles, and checks that a real elimination advances the weapon and shows the level-up message (`hosted-gun-game.png`). It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
+The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, verifies that it opens directly in Blocks without switching tabs, presses Play if needed, and checks simulator startup and all four custom Blocks without grey JavaScript. With `--modes`, it switches the imported project's dropdown to gun game in Blocks, recompiles, and checks that a real elimination advances the weapon and shows the level-up message (`hosted-gun-game.png`). It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
 
 These checks need internet access. Exporting again may change image pixels and PNG bytes; revalidate and record the checksum of the exact file handed to a tester. Files under `local/editor-smoke/` are ordinary evidence screenshots, not project artifacts. Full gameplay and physical-control testing remain separate.
 
@@ -152,5 +152,6 @@ These checks need internet access. Exporting again may change image pixels and P
 
 ## Learning activity
 
-- Complete lesson 01 with the baseline and both variants.
+- Follow the introduction's tutorial-project PNG save/import practice, then import the shooter and change damage from 1 to 3.
+- Complete activity 1's firing-interval experiment and optional projectile-speed experiment.
 - Check whether the learner can explain fire interval versus projectile speed and damage versus hits-to-defeat.

@@ -14,6 +14,19 @@ const wsport = 3243
 const origin = `http://127.0.0.1:${port}`
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const teamSimulator = require('./team-simulator.cjs')
+// Blocks regenerates source comments and XML presentation metadata. Preserve
+// executable text, block structure/fields, and strict implementation/asset checks.
+function sourceText(name, text) {
+    text = text.replace(/\r\n/g, '\n')
+    if (name.endsWith('.jres')) return JSON.stringify(JSON.parse(text))
+    if (name === 'main.ts') return text.split('\n').filter(line => !/^\s*\/\//.test(line)).join('\n')
+    // The asset editor shortens references inside the myTiles namespace.
+    if (name === 'tilemap.g.ts') return text.replace(/return myTiles\.(transparency16|yardFloor|yardWall|yardCover|yardLane|blueSpawn|redSpawn);/g, 'return $1;')
+    if (name === 'main.blocks') return text.replace(/<variables><\/variables>/g, '')
+        .replace(/<data>[^<]*<\/data>/g, '').replace(/ [xy]="\d+"/g, '')
+        .replace(/>\s+</g, '><').trim()
+    return text
+}
 
 async function main() {
     fs.mkdirSync(artifacts, { recursive: true })
@@ -87,7 +100,8 @@ async function main() {
         const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
         for (const name of ['pxt.json', ...manifest.files]) text[name] = fs.readFileSync(path.join(root, name), 'utf8')
         await command('importproject', { project: { text } })
-        await editor.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts')), { timeout: 30000 })
+        await editor.waitForFunction(() => document.querySelector('.blocklySvg')?.getBoundingClientRect().width > 0 && /start\s+shooter/.test(document.body.innerText), { timeout: 30000 })
+        await page.screenshot({ path: path.join(artifacts, 'initial-blocks.png') })
         await command('restartsimulator')
         await sleep(1000)
         const sim = await page.waitForFrame(frame => frame.url().includes('---simulator'), { timeout: 30000 })
@@ -132,9 +146,10 @@ async function main() {
                 return JSON.parse(JSON.parse(json).source)
             }, bytes.toString('base64'))
             const exportedManifest = JSON.parse(files['pxt.json'])
+            assert.equal(exportedManifest.preferredEditor, 'blocksprj', 'PNG must prefer Blocks')
             for (const name of manifest.files) {
                 assert.ok(exportedManifest.files.includes(name), `Export manifest contains ${name}`)
-                assert.equal(files[name].replace(/\r\n/g, '\n'), text[name].replace(/\r\n/g, '\n'), `Baseline ${name} survives export`)
+                assert.equal(sourceText(name, files[name]), sourceText(name, text[name]), `Baseline ${name} survives export`)
             }
             const outputDir = path.join(root, 'local/exports')
             fs.mkdirSync(outputDir, { recursive: true })
@@ -144,6 +159,13 @@ async function main() {
             projectPNG = { output, bytes, sha256: createHash('sha256').update(bytes).digest('hex') }
             console.log(`EXPORTED: ${output}`)
         }
+        // Export while still in Blocks; switching editors can change preferredEditor.
+        await command('switchjavascript')
+        await editor.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts')), { timeout: 30000 })
+        // Import/export can take longer in Blocks; start a fresh match before input checks.
+        await command('stopsimulator')
+        await command('startsimulator')
+        await sim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 })
         await sim.evaluate(() => window.team.freezeBots())
         const start = await snapshot()
         assert.equal(start.soldiers.filter(s => s.team === 0 && s.alive).length, 2)
@@ -244,9 +266,13 @@ async function main() {
                     transfer.items.add(new File([bytes], 'arcade-shooter.png', { type: 'image/png' }))
                     document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }))
                 }, projectPNG.bytes.toString('base64'))
+                await imported.editor.waitForFunction(() => document.querySelector('.blocklySvg')?.getBoundingClientRect().width > 0 && /start\s+shooter/.test(document.body.innerText), { timeout: 30000 })
+                await imported.page.screenshot({ path: path.join(artifacts, 'png-initial-blocks.png') })
+                console.log('PASS: fresh PNG import opens directly in Blocks without switching tabs')
+                await command('switchjavascript', {}, imported.page)
                 await imported.editor.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.startGame()')), { timeout: 30000 })
                 const main = await imported.editor.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
-                assert.equal(main.replace(/\r\n/g, '\n'), text['main.ts'].replace(/\r\n/g, '\n'))
+                assert.equal(sourceText('main.ts', main), sourceText('main.ts', text['main.ts']))
                 await command('restartsimulator', {}, imported.page)
                 await sleep(1000)
                 const importedSim = await imported.page.waitForFrame(f => f.url().includes('---simulator'), { timeout: 30000 })
@@ -262,7 +288,7 @@ async function main() {
                 await command('switchblocks', {}, imported.page)
                 await imported.editor.waitForFunction(() => document.querySelector('.blocklySvg') && /start\s+shooter/.test(document.body.innerText), { timeout: 30000 })
                 // The initial Blocks load can still be applying cached XML after the tab appears.
-                await sleep(700)
+                await sleep(1800)
                 const types = await imported.editor.evaluate(() => {
                     const workspace = pxt.blocks.requireBlockly().common.getMainWorkspace()
                     const all = workspace.getAllBlocks(false)
@@ -271,7 +297,7 @@ async function main() {
                 })
                 for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(types.includes(type))
                 assert.ok(!types.some(type => /typescript|javascript/.test(type)))
-                await sleep(500)
+                await sleep(1200)
                 await command('switchjavascript', {}, imported.page)
                 await imported.editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setWeapon\(3,\s*750,\s*80\)/.test(m.getValue())), { timeout: 30000 }).catch(async error => {
                     console.log('IMPORT ROUNDTRIP', await imported.editor.evaluate(() => monaco.editor.getModels().filter(m => m.uri.path.endsWith('/main.ts')).map(m => m.getValue())))
@@ -289,7 +315,7 @@ async function main() {
                 await imported.page.screenshot({ path: path.join(artifacts, 'png-import.png') })
                 const result = { file: path.relative(root, projectPNG.output), sha256: projectPNG.sha256,
                     bytes: projectPNG.bytes.length, requiredFiles: manifest.files,
-                    checks: ['Embedded baseline sources match', 'Fresh-context PNG drag/drop import', '2v2 simulator starts',
+                    checks: ['Embedded baseline sources match', 'Fresh-context PNG drag/drop import opens directly in Blocks', '2v2 simulator starts',
                         'Custom Blocks appear without grey JavaScript', 'Blocks edit round-trips and changes runtime damage to 3'],
                     limitations: 'Full gameplay, physical controls, lesson instructions and hosted-editor import remain unverified.' }
                 fs.writeFileSync(path.join(root, 'local/exports/validation.json'), JSON.stringify(result, null, 2))
