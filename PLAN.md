@@ -6,7 +6,7 @@ Why the project is shaped the way it is, and what is still open. Usage is in [RE
 
 - A TypeScript-first MakeCode Arcade top-down shooter that teaches gameplay scripting concepts, not a universal FPS modding API.
 - Arcade is a **short ramp to Battlefield 6 Portal**. Learners stay long enough to understand scripting a game mode with **event handlers, functions and per-player variables**, then move to Portal. Arcade-side polish that does not serve that path (balance tuning, more maps, more weapons, demotion) is out of scope unless asked for.
-- The repository is the authoring environment. Future releases offer just two learner downloads: the importable **embedded-source project PNG** and **INTRO.md**, which links to optional activities online. License and activity files stay in the repository; checksums and build records stay in local release evidence. Instructions are not embedded in the PNG. Existing published releases retain their original attachments.
+- The repository is the authoring environment. The latest release offers just two learner downloads: the importable **embedded-source project PNG** and **INTRO.md**, which links to optional activities online. License and activity files stay in the repository; checksums and build records stay in local release evidence. Instructions are not embedded in the PNG. Older published releases retain their original attachments.
 
 ## Architecture
 
@@ -33,8 +33,8 @@ The mod layer is **Portal-shaped, not Portal-compatible**: the ideas and names c
 
 ## Releases
 
-- **Latest:** [`v0.2.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.2.0-preview.1), a prerelease with game modes, the Mod and Weapons blocks and lesson 2 (game commit `d8d0625`, tag on `9043ec5`). Its PNG is 60,326 bytes, SHA-256 `e5597dcdede26f40fdc90c5b4a9e7a0937afa01e3b6fa35973e2bf0f1ebaf333`.
-- **Earlier:** [`v0.1.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.1.0-preview.1), the original 2v2 deathmatch (game commit `a422488`, tag on `692ee8a`). Its PNG is 37,778 bytes, SHA-256 `4292f96a126c99eabcd9d493fb877eac780454e7d112813f9667fe243056b21b`.
+- **Latest:** [`v0.2.0-preview.2`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.2.0-preview.2), a prerelease with Blocks-first opening, SDK-informed block help, a gentler introduction, and only the PNG and introduction attached (game commit `7920808`, tag on `c397b76`). The published PNG matches the local and hosted validated artifact. Its identity and source revision are pinned in `releases/v0.2.0-preview.2.json`.
+- **Earlier:** [`v0.2.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.2.0-preview.1) introduced game modes, the Mod and Weapons blocks, and lesson 2. [`v0.1.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.1.0-preview.1) is the original 2v2 deathmatch. Their descriptors and notes remain under `releases/`.
 - Exported PNGs and validation evidence are ignored local outputs under `local/`; releases go through GitHub Releases (RELEASING.md).
 
 ## Not yet verified
