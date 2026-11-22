@@ -137,6 +137,7 @@ These checks need internet access. Exporting again may change image pixels and P
 - Verify the Shooter category contains weapon settings, soldier settings, and start shooter. Verify **set shooter mode** offers deathmatch, gun game and no mode and survives both round-trip directions (`shooter_set_mode`). The legacy **use deathmatch rules** block (`deathmatch_configure`) remains and selects deathmatch. The soldier block keeps the legacy `shooter_set_enemies` ID, but displays soldier terminology and generates `setSoldiers`.
 - Switch main.ts to Blocks and back: calls and argument values should survive without grey JavaScript blocks.
 - Confirm shooter.ts remains a separate implementation file and is not inlined into main.ts.
+- Hover over custom Shooter, Mod, and Weapons blocks to check that their help is readable and matches Arcade's behavior. The local and hosted scripts also call `tests/block-docs.cjs` to inspect the actual tooltips on all custom blocks, including the legacy deathmatch block; evidence is saved as `block-docs.json` / `hosted-block-docs.json`.
 - Verify settings below supported minima are clamped and do not crash.
 
 ## Project PNG delivery

@@ -26,7 +26,12 @@ namespace weapons {
         return shooter.createWeapon(1, 750, 80, 200, 0, "Pistol")
     }
 
-    /** Replace the player's weapon; the next shot uses it, even while waiting to respawn. */
+    /**
+     * Change one player's weapon for their next shots. They keep it after a death; shots already fired do not change.
+     * These are Arcade presets, not Portal inventory items: shotgun fires one heavy shot and knife is a very short-range shot.
+     * @param player player receiving the weapon
+     * @param kind pistol, SMG (fast-firing weapon), shotgun, or knife
+     */
     //% blockId=weapons_give block="give $player weapon $kind"
     //% weight=90
     export function give(player: shooter.Player, kind: Kind): void {
@@ -39,21 +44,30 @@ namespace weapons {
         return names.indexOf(weapon.name)
     }
 
-    /** The category the player currently carries, or -1 for a custom weapon. */
+    /**
+     * Read the player's weapon category number. Compare it with a weapon category block; -1 means a custom weapon.
+     * @param player player whose weapon to check
+     */
     //% blockId=weapons_current block="weapon of $player"
     //% weight=80
     export function current(player: shooter.Player): number {
         return kindOf(player.weapon)
     }
 
-    /** A category as a number, for comparing with event weapons. */
+    /**
+     * Choose a weapon category to compare with weapon of player or eventWeapon in an elimination event.
+     * @param kind weapon category: pistol, SMG, shotgun, or knife
+     */
     //% blockId=weapons_kind block="$kind"
     //% weight=70
     export function kind(kind: Kind): number {
         return kind
     }
 
-    /** Display name for messages, such as "SMG". */
+    /**
+     * Turn a weapon category number into text for a message, such as Pistol or SMG. Unknown numbers give Custom.
+     * @param kind category number from weapon of player, a weapon category block, or eventWeapon
+     */
     //% blockId=weapons_name block="name of weapon $kind"
     //% weight=60
     export function name(kind: number): string {

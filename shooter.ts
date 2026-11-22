@@ -147,14 +147,24 @@ namespace shooter {
         game.over(winningTeam.id == 0)
     }
 
-    /** Last selection before startup wins. No mode runs combat without rules. */
+    /**
+     * Choose the rules before start shooter. Deathmatch is first team to 10; gun game advances weapons after eliminations.
+     * No mode leaves scoring and winning to your Mod blocks. Changing this after the game starts has no effect.
+     * @param mode rules to use for this match
+     */
     //% blockId=shooter_set_mode block="set shooter mode $mode"
     //% mode.defl=shooter.Mode.Deathmatch weight=75
     export function setMode(mode: Mode): void {
         if (!started) selectedMode = mode
     }
 
-    /** Shared starting weapon for every player. Configure before starting. */
+    /**
+     * Set the starting weapon for both teams, not just you. Put this before start shooter.
+     * After editing, stop the game preview and press Play to apply the change.
+     * @param damage health taken away by each hit; 3 defeats a starting soldier in one hit
+     * @param interval wait between shots in milliseconds; 1000 is one second, and a smaller number means more shots
+     * @param speed how fast shots travel in pixels per second; this does not change how often you shoot
+     */
     //% blockId=shooter_set_weapon block="set weapon damage $damage fire interval (ms) $interval projectile speed $speed"
     //% damage.defl=1 damage.min=1 interval.defl=750 interval.min=50 speed.defl=80 speed.min=10
     //% weight=90
@@ -166,7 +176,13 @@ namespace shooter {
         projectileSpeed = weapon.speed
     }
 
-    /** Shared health/respawn settings; speed applies equally to all three bots. */
+    /**
+     * Set health and return-after-death time for everyone, and movement speed for the three computer players.
+     * Put this before start shooter. Your own movement speed is unchanged.
+     * @param hitPoints starting health for every soldier
+     * @param speed computer-player movement speed in pixels per second
+     * @param interval minimum wait after a death in milliseconds; 5000 is five seconds, and occupied starting points can delay the return
+     */
     // Retain the original settings block ID so existing block references remain stable.
     //% blockId=shooter_set_enemies block="set soldier health $hitPoints bot speed $speed respawn delay (ms) $interval"
     //% hitPoints.defl=3 hitPoints.min=1 speed.defl=10 speed.min=1 interval.defl=5000 interval.min=1000
@@ -331,7 +347,7 @@ namespace shooter {
         }
     }
 
-    /** Start the 2v2 engine. Select mode rules before starting. */
+    /** Start the match: you and a blue computer teammate against two red computer players. Put map and settings blocks before this block. */
     //% blockId=shooter_start_game block="start shooter"
     //% weight=70
     export function startGame(): void {

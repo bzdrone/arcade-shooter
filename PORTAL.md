@@ -66,6 +66,20 @@ Portal's full UI is widget-based (`AddUIText` with position, size, anchor, colou
 
 Weapons use the compatibility library in `weapons.ts`: `weapons.give(player, weapons.Kind.SMG)`, `weapons.current(player)`, `weapons.name(kind)`, with categories pistol, SMG, shotgun and knife. `portal/gungame.ts` contains the same calls implemented with real Portal items.
 
+## Block help in Arcade
+
+The JSDoc above exported blocks in `mod.ts` supplies the editor's hover tooltips; `@param` entries describe inputs for MakeCode's API metadata. Descriptions are paraphrased from the SDK 2.1.2.0 comments in `code/types/mod/index.d.ts` (including `EventHandlerSignatures`) and checked against this implementation. They are not an imported copy of the full SDK documentation. Shooter settings and Weapons presets are Arcade-specific, so their help comes from the implementation, not an SDK equivalent.
+
+Keep the first sentence about what the learner can do; include Arcade limits where Portal's wording would mislead. In particular:
+
+- Setting a score or target does not automatically end an Arcade match. A rule must check it and call `EndGameMode`.
+- Arcade variables store numbers in slots 0–31; Portal variables can hold other value types.
+- Arcade messages use typed text and shorter display times, with shared-screen audience filtering.
+- `AllPlayers` is deprecated in this SDK; `GetAllPlayers` is the current Portal name. Arcade retains `AllPlayers` and its stable block ID for existing projects.
+- `DisplayGameModeMessage` is not declared in this SDK's `index.d.ts`; `code/modlib/index.ts` comments out calls to it and supplies a widget workaround. Arcade's working message block is not evidence that the corresponding Portal API works.
+
+Do not automatically replace these descriptions when updating the SDK: compare behavior and adapt the help. `tests/block-docs.cjs`, called by the local and hosted browser checks, reads actual custom block tooltips to catch missing or stale help. The exported project PNG carries these comments with its source, so learners do not need another documentation download.
+
 ## Porting checklist
 
 Changes when moving an Arcade mode written with `mod` and `weapons` to Portal. `portal/gungame.ts` is a worked example; each change there is marked `PORT:`.

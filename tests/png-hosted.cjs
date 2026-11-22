@@ -74,6 +74,8 @@ async function main() {
         assert.equal(blocks.category, true)
         for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)))
+        const blockDocs = await require('./block-docs.cjs')(page)
+        fs.writeFileSync(path.join(evidence, 'hosted-block-docs.json'), JSON.stringify(blockDocs, null, 2))
         if (process.argv.includes('--tilemap')) {
             await page.evaluate(() => {
                 const B = pxt.blocks.requireBlockly?.() || Blockly
@@ -117,6 +119,7 @@ async function main() {
         assert.deepEqual(errors, [])
         const result = { file, sha256: createHash('sha256').update(bytes).digest('hex'), versions,
             checks: ['Fresh hosted-editor PNG import opens directly in Blocks', 'Baseline main.ts', '2v2 simulator startup (two soldiers per team, shared health)', 'Shooter settings/start and mode selector blocks, no grey JavaScript'],
+            blockTooltips: Object.keys(blockDocs).length,
             tilemapEditor: process.argv.includes('--tilemap'),
             gunGame: process.argv.includes('--modes'),
             limitations: 'Not full gameplay, physical keyboard, lesson, or hosted settings-change validation.' }

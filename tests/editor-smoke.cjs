@@ -166,6 +166,7 @@ async function main() {
         await command('stopsimulator')
         await command('startsimulator')
         await sim.waitForFunction(() => typeof pxsim !== 'undefined' && pxsim.runtime?.running && Object.keys(pxsim.runtime.globals).some(k => /^player___/.test(k)), { timeout: 30000 })
+        await teamSimulator.install(sim)
         await sim.evaluate(() => window.team.freezeBots())
         const start = await snapshot()
         assert.equal(start.soldiers.filter(s => s.team === 0 && s.alive).length, 2)
@@ -236,6 +237,8 @@ async function main() {
         for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)), 'No grey JavaScript blocks')
         await page.screenshot({ path: path.join(artifacts, 'blocks.png') })
+        const blockDocs = await require('./block-docs.cjs')(editor)
+        fs.writeFileSync(path.join(artifacts, 'block-docs.json'), JSON.stringify(blockDocs, null, 2))
         assert.ok(blocks.types.includes('set_current_tilemap'), 'Level setup stays Blocks-friendly')
         if (process.argv.includes('--arena') || process.argv.includes('--tilemap')) {
             await editor.evaluate(() => {

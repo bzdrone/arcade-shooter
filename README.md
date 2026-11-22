@@ -121,6 +121,8 @@ The **Mod** and **Weapons** Blocks categories are the learner scripting surface:
 - `Wait(seconds)` pauses only the current handler.
 - Weapons: `weapons.give(player, kind)`, `weapons.current(player)`, `weapons.name(kind)`.
 
+Hover over a custom block in Arcade to read its help. Shooter, Mod, and Weapons blocks explain their purpose, with input descriptions in the source JSDoc. Mod descriptions are adapted from the Portal SDK and call out Arcade-specific behavior; the help travels inside the project PNG, with no extra download.
+
 The layer is Portal-shaped, not Portal-compatible: the ideas and names carry over to Portal, not the code.
 
 Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
