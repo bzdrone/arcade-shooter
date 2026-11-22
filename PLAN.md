@@ -32,8 +32,9 @@ The mod layer is **Portal-shaped, not Portal-compatible**. Porting a mode takes 
 
 ## Releases
 
-- **Published:** [`v0.1.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.1.0-preview.1), a prerelease of the original 2v2 deathmatch (game commit `a422488`, tag on `692ee8a`). Its PNG is 37,778 bytes, SHA-256 `4292f96a126c99eabcd9d493fb877eac780454e7d112813f9667fe243056b21b`. It predates game modes and the mod layer.
-- The current game (modes, mod layer, lesson 2) is unreleased. Exported PNGs and validation evidence are ignored local outputs under `local/`; releases go through GitHub Releases (RELEASING.md).
+- **Latest:** [`v0.2.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.2.0-preview.1), a prerelease with game modes, the Mod and Weapons blocks and lesson 2 (game commit `d8d0625`, tag on `9043ec5`). Its PNG is 60,326 bytes, SHA-256 `e5597dcdede26f40fdc90c5b4a9e7a0937afa01e3b6fa35973e2bf0f1ebaf333`.
+- **Earlier:** [`v0.1.0-preview.1`](https://github.com/bzdrone/arcade-shooter/releases/tag/v0.1.0-preview.1), the original 2v2 deathmatch (game commit `a422488`, tag on `692ee8a`). Its PNG is 37,778 bytes, SHA-256 `4292f96a126c99eabcd9d493fb877eac780454e7d112813f9667fe243056b21b`.
+- Exported PNGs and validation evidence are ignored local outputs under `local/`; releases go through GitHub Releases (RELEASING.md).
 
 ## Not yet verified
 
@@ -44,6 +45,5 @@ The mod layer is **Portal-shaped, not Portal-compatible**. Porting a mode takes 
 
 ## Possible next work
 
-- A preview release with game modes and the mod layer.
 - A Portal playtest of the gun game port.
 - A learner trial of lessons 1 and 2, tuning from what is observed.
