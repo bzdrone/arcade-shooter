@@ -15,10 +15,10 @@ namespace weapons {
     const names = ["Pistol", "SMG", "Shotgun", "Knife"]
 
     export function create(kind: Kind): shooter.Weapon {
-        if (kind == Kind.SMG) return shooter.createWeapon(1, 300, 100, 64, 7, "SMG")
-        if (kind == Kind.Shotgun) return shooter.createWeapon(3, 1000, 70, 32, 4, "Shotgun")
-        if (kind == Kind.Knife) return shooter.createWeapon(3, 500, 80, 12, 1, "Knife")
-        return shooter.createWeapon(1, 750, 80, 200, 0, "Pistol")
+        if (kind == Kind.SMG) return shooter.createWeapon(34, 300, 100, 64, 7, "SMG")
+        if (kind == Kind.Shotgun) return shooter.createWeapon(100, 1000, 70, 32, 4, "Shotgun")
+        if (kind == Kind.Knife) return shooter.createWeapon(100, 500, 80, 12, 1, "Knife")
+        return shooter.createWeapon(34, 750, 80, 200, 0, "Pistol")
     }
 
     /**

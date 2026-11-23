@@ -1,52 +1,49 @@
-# Activity 1: Change how shooting feels
+# Activity 1: Change experience modifiers
 
-Start with **INTRO.md**, including its MakeCode Arcade tutorials if the editor is new to you. You should already be able to open the shooter, play it, and change damage in the existing weapon block.
+Start with **INTRO.md**, including its MakeCode Arcade tutorials if the editor is new to you. You should already be able to open the shooter, play it, and change incoming damage in an existing block.
 
-Stay in **Blocks** for this activity. You do not need to open JavaScript or edit code.
+Stay in **Blocks**. You do not need to open JavaScript or edit code.
 
 ## Find your starting settings
 
-Find the existing block that begins **set weapon damage**. It has three numbers:
+The existing **Modifiers** blocks configure everyone:
 
-| Part of the block | Starting number | What it changes |
+| Block | Starting value | Meaning |
 | --- | --- | --- |
-| damage | 1 | How much health each hit takes away |
-| fire interval (ms) | 750 | How long the weapon waits between shots |
-| projectile speed | 80 | How quickly each shot travels across the screen |
+| set maximum health | 100 | Health at the start of each life |
+| set incoming damage percent | 100 | Normal damage; 200 doubles it, 0 prevents damage |
+| set respawn seconds | 5 | Minimum wait after death |
+| set friendly fire | false | Shots pass through teammates without damage |
 
-“Projectile” means the shot that travels from the weapon. “ms” means milliseconds: 1,000 milliseconds is one second. You do not need to memorize those terms.
+Put these blocks before **start shooter**. After every change, stop the game preview and press Play, rather than using fast restart. Change only one setting at a time.
 
-Set the numbers to **1, 750, 80**. Leave the other blocks alone. Stop the game preview, then press Play. Use stop and Play after every change, rather than the restart button.
+## Try more health
 
-Remember: this block changes weapons for **both teams**, not just you.
+1. Restore incoming damage percent to **100**.
+2. Predict what will happen if every soldier has twice as much health.
+3. Change maximum health from **100** to **200**.
+4. Stop and play. Does it take more hits to defeat you? Does the red team also last longer?
+5. Restore maximum health to **100** and stop/play again.
 
-## Try shooting more often
+In this Arcade model, the starting pistol takes three hits at 100 health and six at 200. Portal uses real weapons, so do not assume identical hit counts there.
 
-1. Hold Space while playing and notice the gaps between shots.
-2. Stop the game preview.
-3. Change only **fire interval (ms)** from **750** to **300**.
-4. Guess what will happen to the gaps between shots.
-5. Press Play and hold Space again. What changed?
+## Try a shorter return
 
-A smaller wait means shots come out more often. It does not make each shot travel faster.
+1. Change respawn seconds from **5** to **1**.
+2. Predict how this will affect the time spent waiting after a death.
+3. Stop and play. Watch your respawn countdown.
+4. Restore **5** when finished.
 
-Set that number back to **750**, then stop and play again to return to the starting version. You can finish here, or try the optional experiment below.
+The delay is a minimum: if all your team's spawn points are occupied, you must wait for a clear one.
 
-## Optional: make shots travel faster
+## Optional: friendly fire
 
-1. Keep damage at **1** and fire interval at **750**.
-2. Change only **projectile speed** from **80** to **120**.
-3. Guess whether shots will come out more often or reach the other side sooner.
-4. Stop and play again. Watch the shots as they cross the open space.
+Change friendly fire to **true**, then stop/play. Your shots can now hurt your blue teammate, and theirs can hurt you. Bots still aim at opponents; an ally can be caught between the shooter and the target. Defeating a teammate does not earn a team point or advance a gun-game weapon.
 
-What changed? What stayed the same?
-
-Set speed back to **80** when you want to return to the starting version.
+Restore **false** afterward.
 
 ## Make your own choice
 
-Choose one of the three numbers to change. Before playing, say what you expect. After playing, say what you noticed.
+Choose one modifier to change. Predict, play, then explain what changed for both teams. There is no single best value: you are deciding how the experience should feel.
 
-Did the change help you? Did it also help the other team? There is no single best answer: you are deciding how you want the game to feel.
-
-You have now tried three different ideas: how hard a shot hits, how often you can shoot, and how fast a shot travels. These ideas also appear in bigger shooter games, though the tools for changing them may be different.
+These blocks are a small Portal-oriented convention, not copies of the website's controls. The converter applies supported settings through Portal SDK actions. Builder's health and redeploy-delay **multipliers** are different from our absolute health and seconds; the converter does not produce a website modifier-import file. Arcade has no health regeneration or headshot model, and Portal weapon damage and other settings still affect the result.

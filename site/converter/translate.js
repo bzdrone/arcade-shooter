@@ -199,6 +199,7 @@ function translateFile(fileName, source, ast, ctx) {
                 if (asyncContext) edits.insert(n.start, 'await ')
                 else warn(n.start, 'a wait inside this callback cannot pause in Portal (it is not awaited).')
             }
+            if (name && name.startsWith('modifiers.')) ctx.errors.push(`${fileName}: modifiers must be literal top-level settings before startGame().`)
             if (name && REWRITES[name]) edits.add(n.callee.start, n.callee.end, REWRITES[name])
             if (name === 'mod.Message') pendingMessages.push(n)
         }
@@ -305,7 +306,7 @@ function classify(statements, file, ctx, prefix) {
                 out.handlers.push({ event, name: `${event[0].toLowerCase()}${event.slice(1)}${index}`, fn, prefix, statement: s })
                 continue
             }
-            if (name && SETTINGS_CALLS.has(name)) { out.settings.push(call); continue }
+            if (name && (SETTINGS_CALLS.has(name) || name.startsWith('modifiers.'))) { out.settings.push(call); continue }
             if (name === 'shooter.registerMode') continue
         }
         if (s.type === 'Function' || s.type === 'Var' || s.type === 'Enum') out.declarations.push(s)
@@ -315,16 +316,46 @@ function classify(statements, file, ctx, prefix) {
 }
 
 function readSettings(calls, ctx) {
-    const s = { damage: 1, interval: 750, speed: 80, health: 3, botSpeed: 10, respawnMs: 5000, mode: 'None', tilemap: null }
+    const s = { damage: 34, interval: 750, speed: 80, health: 100, incomingDamagePercent: 100, friendlyFire: false, botSpeed: 10, respawnMs: 5000, mode: 'None', tilemap: null }
     const num = (call, i, key) => {
         const v = numberValue(call.args[i])
         if (v === null) ctx.warnings.push(`main.ts: ${dottedName(call.callee)} argument ${i + 1} is not a plain number; using ${s[key]}.`)
         else s[key] = v
     }
+    let started = false
+    const limits = { setMaxHealth: [1, 500, 'health'], setIncomingDamagePercent: [0, 200, 'incomingDamagePercent'], setRespawnSeconds: [0, 60, 'respawnMs'] }
     for (const call of calls) {
         const name = dottedName(call.callee)
-        if (name === 'shooter.setWeapon') { num(call, 0, 'damage'); num(call, 1, 'interval'); num(call, 2, 'speed') }
-        else if (name === 'shooter.setSoldiers') { num(call, 0, 'health'); num(call, 1, 'botSpeed'); num(call, 2, 'respawnMs') }
+        if (name === 'shooter.startGame') { started = true; continue }
+        if (name && name.startsWith('modifiers.')) {
+            const method = name.slice('modifiers.'.length)
+            if (!Object.hasOwn(limits, method) && method !== 'setFriendlyFire') { ctx.errors.push(`main.ts: unsupported modifier ${name}.`); continue }
+            if (started) { ctx.warnings.push(`main.ts: ${name} after startGame() is ignored, as in Arcade.`); continue }
+            if (call.args.length !== 1) { ctx.errors.push(`main.ts: ${name} requires one literal argument.`); continue }
+            if (method === 'setFriendlyFire') {
+                const arg = call.args[0]
+                if (arg.type !== 'Identifier' || !['true', 'false'].includes(arg.name)) ctx.errors.push(`main.ts: ${name} requires a literal boolean.`)
+                else s.friendlyFire = arg.name === 'true'
+            } else {
+                const value = numberValue(call.args[0])
+                if (value === null || !Number.isFinite(value)) { ctx.errors.push(`main.ts: ${name} requires a finite literal number.`); continue }
+                const [min, max, key] = limits[method]
+                const rounded = method === 'setRespawnSeconds' ? value : method === 'setIncomingDamagePercent' ? Math.round(value / 5) * 5 : Math.round(value)
+                const clamped = Math.max(min, Math.min(max, rounded))
+                s[key] = method === 'setRespawnSeconds' ? clamped * 1000 : clamped
+            }
+            continue
+        }
+        if (started) { ctx.warnings.push(`main.ts: ${name} after startGame() is ignored.`); continue }
+        if (name === 'shooter.setWeapon') {
+            num(call, 0, 'damage'); num(call, 1, 'interval'); num(call, 2, 'speed')
+            ctx.warnings.push('Legacy weapon settings are Arcade-only; Portal starts with the pistol, without fire-interval or projectile-speed conversion.')
+        }
+        else if (name === 'shooter.setSoldiers') {
+            num(call, 0, 'health'); num(call, 1, 'botSpeed'); num(call, 2, 'respawnMs')
+            s.health = Math.max(1, Math.min(500, Math.round(s.health)))
+            s.respawnMs = Math.max(1000, Math.min(60000, Math.round(s.respawnMs)))
+        }
         else if (name === 'shooter.setMode') {
             const mode = dottedName(call.args[0])
             if (mode && mode.startsWith('shooter.Mode.')) s.mode = mode.slice('shooter.Mode.'.length)
@@ -403,6 +434,9 @@ export function translateProject(files, runtime, projectName) {
     let modeT = null
     if (modeFile) {
         modeParts = classify(modeNamespace.rules.body.body, modeFile, ctx, modeNamespace.node.name + '.')
+        for (const call of modeParts.settings) {
+            if (dottedName(call.callee)?.startsWith('modifiers.')) ctx.errors.push(`${modeFile.name}: modifiers belong in main.ts before startGame(), not in mode rules.`)
+        }
         modeT = translateFile(modeFile.name, modeFile.source, modeFile.ast, ctx)
         for (const m of modeNamespace.members) modeT.walk(m, m, false)
         for (const d of modeParts.declarations) modeT.walk(d, d, true)
@@ -420,15 +454,16 @@ export function translateProject(files, runtime, projectName) {
 
     const out = []
     const moveSpeed = settings.botSpeed <= 20 ? 'Walk' : settings.botSpeed <= 50 ? 'Run' : 'Sprint'
-    const startWeapon = settings.interval <= 400 ? 1 : 0
+    const startWeapon = 0
     const settingsText = [
         '    export const settings = {',
-        `        damage: ${settings.damage},          // Arcade weapon damage per hit`,
-        `        health: ${settings.health},          // Arcade soldier health`,
+        `        health: ${settings.health},`,
+        `        incomingDamagePercent: ${settings.incomingDamagePercent},`,
+        `        friendlyFire: ${settings.friendlyFire},`,
         `        respawnSeconds: ${settings.respawnMs / 1000},  // time before a soldier returns`,
         `        botMoveSpeed: mod.MoveSpeed.${moveSpeed},  // Arcade bot speed ${settings.botSpeed}`,
         '        teamSize: 2,        // soldiers per team, humans first; at most 2, the bot spawners per team in the map',
-        `        startWeapon: ${startWeapon},     // weapons.Kind everyone starts with (Arcade fire interval ${settings.interval} ms)`,
+        `        startWeapon: ${startWeapon},     // pistol; fire interval does not select a Portal weapon`,
         '        debug: true,        // write runtime notes to PortalLog.txt when hosting locally',
         '    }'
     ].join('\n')
@@ -488,10 +523,12 @@ export function translateProject(files, runtime, projectName) {
             errors: ctx.errors, warnings: ctx.warnings, mode: settings.mode, modeFile: modeFile && modeFile.name,
             handlers: ordered.map(h => ({ event: h.event, from: h.prefix ? modeFile.name : 'main.ts' })),
             mapped: [
-                `Damage ${settings.damage} against health ${settings.health}: Portal damage scaled by ${(3 * settings.damage / Math.max(1, settings.health)).toFixed(2)}.`,
+                `Maximum health ${settings.health}; incoming damage ${settings.incomingDamagePercent}% (100 = normal, SDK-based assumption).`,
+                `Friendly fire ${settings.friendlyFire ? 'on' : 'off'} for everyone.`,
+                'Modifiers use SDK runtime actions, not a website modifier-import file; Builder multipliers are not equivalent to absolute health or respawn seconds.',
                 `Respawn delay ${settings.respawnMs} ms: ${settings.respawnMs / 1000} s redeploy time for players and bots.`,
                 `Bot speed ${settings.botSpeed}: Portal bots ${moveSpeed.toLowerCase()}.`,
-                `Fire interval ${settings.interval} ms: everyone starts with the ${startWeapon ? 'SMG' : 'pistol'} (projectile speed has no Portal equivalent).`
+                'Everyone starts with the pistol unless mode rules equip another weapon. Arcade fire interval and projectile speed are not converted.'
             ]
         }
     }

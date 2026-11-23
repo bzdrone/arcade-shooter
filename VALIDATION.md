@@ -12,6 +12,8 @@ node --test tests/gameplay.test.cjs tests/pathing.test.cjs
 
 No npm packages are required. The tests transform TypeScript using Node's built-in transformer and run it against a minimal mocked Arcade API. Node may emit an experimental-transformer warning.
 
+Modifier checks cover explicit defaults, range clamps, rounding (including five-percent damage steps), last-wins setup, startup locking, zero damage, fractional damage, custom respawn delay, and friendly fire without self-hits or kill/mode credit. Converter parity checks compare Arcade validation with generated settings, reject nonliteral/unsupported/dynamic calls, warn on late calls, and ensure fire interval does not select a Portal weapon. Portal mocks assert SDK calls for health/heal, incoming percent, friendly fire and redeploy configuration; they do not establish actual Portal effects.
+
 These checks cover the actual main.ts entry point, exactly two soldiers per team, shared health/weapons, bot fire, retained human aim/cooldown, friendly-fire immunity, harmless contact, team scoring, both match outcomes, delayed human/bot respawns, occupied points, invalid spawn layouts, settings clamps, and external sprite cleanup. The rule suite injects a private-state inspection hook into its transformed test copy only; this hook is not exported in game source or the PNG.
 
 Pathing checks decode committed tilemap assets, verify connected floor, exercise both barriers in both directions, check the 8×8 footprint, and test moving/replaced targets, independent fields, blocked/unreachable goals, reopened passages, and shot corridors (including bullet width). Collision checks delay destruction and replay stale overlaps so consumed shots or defeated soldiers cannot award duplicate damage/points.
@@ -24,7 +26,7 @@ The mocks do **not** validate PXT compatibility, physics, sprite lifetime/off-sc
 
 Message checks cover literal three-slot substitution, stable display names, all/human/team audience filtering, independent timers, FIFO bounds/overflow and firing while messages are active. With `--arena`, a disposable source variant also exercises actual HUD rendering, queue expiry and movement/firing; inspect `messages.png`. Variant source is not exported in the baseline PNG.
 
-Weapon checks cover all four presets, range/color clamps, fire-time color/lifetime snapshots and range-aware bot behavior. `--arena` adds real short-shot expiry (cannot hit a distant target), aligned knife pursuit without out-of-range firing, and a close-range elimination; inspect `range-pursuit.png`. Baseline deathmatch checks still use `(1, 750, 80)` and its original colors/lifetime.
+Weapon checks cover all four presets, range/color clamps, fire-time color/lifetime snapshots and range-aware bot behavior. `--arena` adds real short-shot expiry (cannot hit a distant target), aligned knife pursuit without out-of-range firing, and a close-range elimination; inspect `range-pursuit.png`. Baseline deathmatch checks use `(34, 750, 80)` and its original colors/lifetime.
 
 Mode checks cover last-wins `setMode` selection before startup, the legacy `deathmatch.configure()` path, engine-only operation, and gun game for both teams: per-player level persistence across death, independent teammate levels, team score as the highest level, old-weapon shots not advancing a level, and the final knife elimination winning for the finisher's team. `--arena` (or the faster `--modes`) also runs a controlled full gun-game ladder for each team with real bullets, checks the team result and game-over button restart, and round-trips the mode dropdown (gun game → no mode → gun game); inspect `gun-game-level-up.png`, `gun-blue-win.png`, `gun-red-win.png`, `gun-game-blocks.png`.
 
@@ -99,7 +101,7 @@ This uses Puppeteer already installed in the sibling Arcade toolchain and an ins
 
 The script starts its own loopback-only editor server on ports 3242/3243, uses a disposable browser profile and in-memory workspace, and closes the browser/server on completion. It does not publish a project or change repository source. An internet connection is currently needed: this target loads the hosted simulator iframe at `https://trg-arcade.userpxt.io/---simulator`.
 
-Checks include two live soldiers per team, right/up human movement, retained aim, held/released firing, shared initial health, and the right wall boundary. Input is synthetic controller input through the simulator board, not a physical keyboard test. It then changes weapon damage in TypeScript, decompiles to Blocks, checks the four custom block types in the baseline (three Shooter settings/start blocks plus the **set shooter mode** dropdown) and absence of grey blocks, edits damage in Blocks, and checks the regenerated TypeScript. This avoids a false pass from cached Blocks/TypeScript files.
+Checks include two live soldiers per team, right/up human movement, retained aim, held/released firing, shared initial health, and the right wall boundary. Input is synthetic controller input through the simulator board, not a physical keyboard test. It then changes incoming damage percent in TypeScript, decompiles to Blocks, checks all four Modifiers blocks plus Shooter mode/start and absence of grey blocks, edits percent in Blocks, and checks the regenerated TypeScript. This avoids a false pass from cached Blocks/TypeScript files.
 
 Screenshots and a JSON result are written to ignored `local/editor-smoke/`. Screenshots are evidence only, **not project PNG artifacts**. The baseline smoke checks do not cover the complete gameplay checklist, match endings, physical controls, lesson variants, or PNG export/import. Optional checks below cover controlled combat/endgame and artifact import. A successful Blocks round trip must also preserve shooter.ts as a separate project file during final artifact validation.
 
@@ -112,6 +114,12 @@ For the team/training-yard checks, run `node tests/editor-smoke.cjs --arena`. `t
 - Tilemap thumbnail opening with wall controls, then Done. `--tilemap` runs just the editor-opening check alongside baseline smoke checks.
 
 Controlled teleports reset that soldier's navigation waypoint and field refresh deadline, since retained waypoints from the old location otherwise create artificial wall stalls. Evidence includes `blue-win.png`, `red-win.png`, `arena-pathing.png`, and `result.json` under `local/editor-smoke/`.
+
+## Experience modifiers in the real simulator
+
+Run `node tests/editor-smoke.cjs --modifiers`. A disposable variant starts at 120 health, 50 percent incoming damage, one-second respawns and friendly fire on. It checks a real shot damaging an ally by 17 health, a friendly elimination without a team point, and return with full configured health. Inspect `local/editor-smoke/modifiers.png`. Host checks cover precise timer boundaries and zero delay/damage. This is not a Portal playtest.
+
+Baseline Blocks/PNG checks use an incoming-percent edit and verify all four modifier blocks, preserved health/respawn/friendly-fire literals, and the updated runtime percent after stop/start. Modifier numeric inputs with min/max can decompile to slider shadows; tests handle both `SLIDER` and `NUM` fields.
 
 ## Sample maps
 
@@ -136,9 +144,9 @@ node tests/png-hosted.cjs --tilemap --modes
 
 The first command exports the **baseline before test edits**, using Arcade's simulator-camera action. Although its tooltip says "Take Screenshot", this target's `saveAsPNG` setting routes that action through the official `saveProjectAsPNGAsync` exporter, embedding compressed project source. The script asserts that setting, decodes the resulting PNG using PXT, and compares every manifest-listed source file to the baseline. It does not construct a substitute PNG or re-encode the exported bytes.
 
-The original downloaded bytes are copied to ignored `local/exports/arcade-shooter.png`. The exporter asserts `preferredEditor: blocksprj` in the embedded manifest. A fresh isolated browser context receives only that file through the editor's drag/drop importer. Before any tab-switch command, it verifies that the Blocks workspace is visible. It then checks 2v2 startup, custom Blocks, and a damage edit that round-trips and takes effect after stop/start compilation. `local/exports/validation.json` records the checksum and checks. Changing settings in the test does not modify the exported baseline.
+The original downloaded bytes are copied to ignored `local/exports/arcade-shooter.png`. The exporter asserts `preferredEditor: blocksprj` in the embedded manifest. A fresh isolated browser context receives only that file through the editor's drag/drop importer. Before any tab-switch command, it verifies that the Blocks workspace is visible. It then checks 2v2 startup, custom Blocks, and an incoming-damage-percent edit that round-trips and takes effect after stop/start compilation. `local/exports/validation.json` records the checksum and checks. Changing settings in the test does not modify the exported baseline.
 
-The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, verifies that it opens directly in Blocks without switching tabs, presses Play if needed, and checks simulator startup and all four custom Blocks without grey JavaScript. With `--modes`, it switches the imported project's dropdown to gun game in Blocks, recompiles, and checks that a real elimination advances the weapon and shows the level-up message (`hosted-gun-game.png`). It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
+The second command imports the same file into a fresh browser profile at `https://arcade.makecode.com/`, verifies that it opens directly in Blocks without switching tabs, presses Play if needed, and checks simulator startup and all baseline Modifiers and Shooter Blocks without grey JavaScript. With `--modes`, it switches the imported project's dropdown to gun game in Blocks, recompiles, and checks that a real elimination advances the weapon and shows the level-up message (`hosted-gun-game.png`). It does not publish the project. An alternate PNG path can be passed as the first argument. Evidence, target versions, and the tested checksum are written to `local/editor-smoke/hosted-result.json`.
 
 These checks need internet access. Exporting again may change image pixels and PNG bytes; revalidate and record the checksum of the exact file handed to a tester. Files under `local/editor-smoke/` are ordinary evidence screenshots, not project artifacts. Full gameplay and physical-control testing remain separate.
 
@@ -153,7 +161,7 @@ These checks need internet access. Exporting again may change image pixels and P
 - Bots route around both barriers from either side without clipping corners or sticking to walls. Move around a corner mid-chase and verify pursuit adapts.
 - Close a passage in the level editor: bots must respect the new wall markings. An unreachable bot stops; reopening a passage permits routing again.
 - Move/edit the blue/red spawn tiles; startup uses their identities. Missing, blocked, or disconnected required points report an invalid layout rather than starting an unfair/inaccessible match. Keep two walkable points per team.
-- All soldiers have three health by default and use the same weapon. All bots move at 10 px/s, target reachable opponents independently, and shoot only with clear cardinal alignment.
+- All soldiers have 100 health by default and use the same 34-damage weapon. All bots move at 10 px/s, target reachable opponents independently, and shoot only with clear cardinal alignment.
 - Touching opponents does no damage. Friendly shots pass through teammates without damage; opposing shots damage exactly one soldier and are consumed.
 - Each elimination awards one point to the firing team, including when the firing soldier has died. Stale callbacks never duplicate damage/points.
 - Human and bot deaths wait five seconds before returning at an unoccupied team point, with restored health and a fresh cooldown. Occupied points delay respawn without adding soldiers. Human death does not end the match; HUD shows the countdown/wait state and controls work after returning.
@@ -164,7 +172,7 @@ These checks need internet access. Exporting again may change image pixels and P
 ## Customization and Blocks
 
 - Change each setting independently and verify its effect after stopping and starting the simulator (forces compilation). Fast restart can reuse previously compiled code.
-- Verify the Shooter category contains weapon settings, soldier settings, and start shooter. Verify **set shooter mode** offers deathmatch, gun game and no mode and survives both round-trip directions (`shooter_set_mode`). The legacy **use deathmatch rules** block (`deathmatch_configure`) remains and selects deathmatch. The soldier block keeps the legacy `shooter_set_enemies` ID, but displays soldier terminology and generates `setSoldiers`.
+- Verify the Modifiers category contains maximum health, incoming damage percent, respawn seconds, and friendly fire. Verify Shooter retains legacy weapon/soldier settings and start shooter. Verify **set shooter mode** offers deathmatch, gun game and no mode and survives both round-trip directions (`shooter_set_mode`). The legacy **use deathmatch rules** block (`deathmatch_configure`) remains and selects deathmatch. The soldier block keeps the legacy `shooter_set_enemies` ID, but displays soldier terminology and generates `setSoldiers`.
 - Switch main.ts to Blocks and back: calls and argument values should survive without grey JavaScript blocks.
 - Confirm shooter.ts remains a separate implementation file and is not inlined into main.ts.
 - Hover over custom Shooter, Mod, and Weapons blocks to check that their help is readable and matches Arcade's behavior. The local and hosted scripts also call `tests/block-docs.cjs` to inspect the actual tooltips on all custom blocks, including the legacy deathmatch block; evidence is saved as `block-docs.json` / `hosted-block-docs.json`.
@@ -174,7 +182,7 @@ These checks need internet access. Exporting again may change image pixels and P
 
 - Export using Arcade's project-PNG facility, not a screenshot or ordinary image export.
 - Import the exported PNG into a fresh editor project without access to this repository.
-- Confirm main.ts, main.blocks, shooter.ts, deathmatch.ts, gungame.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
+- Confirm main.ts, main.blocks, modifiers.ts, shooter.ts, deathmatch.ts, gungame.ts, messages.ts, weapons.ts, pathing.ts, tilemap.g.ts, tilemap.g.jres, and the required project configuration survive import.
 - Open the tilemap thumbnail in Blocks and verify the level editor and wall tool work on the imported artifact.
 - Repeat gameplay and Blocks checks against the imported artifact.
 - Make a settings change after import and verify its effect after restart.
@@ -183,6 +191,6 @@ These checks need internet access. Exporting again may change image pixels and P
 
 ## Learning activity
 
-- Follow the introduction's tutorial-project PNG save/import practice, then import the shooter and change damage from 1 to 3.
-- Complete activity 1's firing-interval experiment and optional projectile-speed experiment.
-- Check whether the creator can explain fire interval versus projectile speed and damage versus hits-to-defeat.
+- Follow the introduction's tutorial-project PNG save/import practice, then import the shooter and change incoming damage percent from 100 to 200 (three starting pistol hits become two).
+- Complete activity 1's health, respawn delay, and optional friendly-fire experiments.
+- Check whether the creator can explain health versus incoming damage, everyone-only scope, and Arcade/Portal conversion limits.

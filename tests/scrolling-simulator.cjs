@@ -62,7 +62,7 @@ controller.B.onEvent(ControllerButtonEvent.Pressed, function () {
         team.freezeBots(); team.place(1, 56, 40); team.place(2, 120, 40)
         team.slots()[1].nextShotAt = 0
     })
-    await sim.waitForFunction(() => team.slots()[2].health < 3, { timeout: 3000 })
+    await sim.waitForFunction(() => team.slots()[2].health < 100, { timeout: 3000 })
     assert.ok((await state()).left > 120, 'Off-screen shot hit while both combatants were outside the view')
 
     // Detach on death, hold the view, then follow a fresh human body at team spawn.

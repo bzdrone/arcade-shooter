@@ -16,13 +16,13 @@ The implementation is primarily TypeScript, with a small Blocks-friendly customi
 
 The example is a **two-versus-two top-down soldier match**: you and one blue bot versus two red bots. Your soldier has a white helmet stripe. Direction buttons move you; holding **A** fires along the last movement axis, retaining aim when you stop.
 
-- Every soldier starts with **3 health** and uses the same weapon: **1 damage**, **750 ms** between shots, projectiles at **80 px/s**. Small bars above soldiers show remaining health.
+- Every soldier starts with **100 health** and uses the same simplified pistol: **34 damage**, **750 ms** between shots, projectiles at **80 px/s**. It takes three starting hits to defeat a soldier. Small bars above soldiers show remaining health. Weapon timing and projectile speed are internal Arcade approximations, not Portal weapon settings.
 - All three bots move at **10 px/s**, choose reachable opposing soldiers independently, route around walls, and shoot when cardinally aligned with a clear shot. Human movement is **70 px/s**.
 - **Only bullets cause damage.** Touching soldiers is harmless; friendly fire is off, and friendly bullets pass through teammates. Cover blocks both teams and destroys shots.
 - Each elimination earns the shooter's team one point. The **first team to 10** wins. The HUD shows both scores and your health/respawn status; the result screen names the winning team. Press a button there to restart.
 - An eliminated soldier—including you—waits **five seconds**, then returns with full health at a clear spawn tile for its own team. If all its team's points are occupied, it waits rather than spawning on someone. There are always four soldier slots, never a growing swarm.
 
-The creator path starts with a few MakeCode Arcade beginner tutorials, then a short play session and one damage change in the existing Blocks workspace. Activity 1 stays in Blocks and introduces the other weapon settings one at a time; writing game-mode rules is a later activity, not part of the first session. Learning activities use a predict → change → test → explain loop. Weapon settings apply to **both teams**, exposing damage, fire interval, and projectile speed. Soldier settings expose shared health, bot speed, and respawn delay.
+The creator path starts with a few MakeCode Arcade beginner tutorials, then a short play session and one incoming-damage change in the existing Blocks workspace. Activity 1 stays in Blocks and introduces health, respawn delay, and friendly fire one at a time; writing game-mode rules comes later. Activities use a predict → change → test → explain loop. The opening settings apply to **everyone**, not just the human player.
 
 This project is specifically for learning and authoring Battlefield 6 Portal maps and game modes. Arcade provides a local, top-down starting environment; the converter turns supported maps and rules into Portal files. The Arcade simulation has no networking or external assets and does not implement first-person rendering or client/server authority.
 
@@ -73,9 +73,9 @@ In **Blocks**, click the thumbnail in **set tilemap to** to open Arcade's level 
 
 Open https://arcade.makecode.com/ and drag the **original project PNG file** onto the page, or use **Import → Import File**. Press the simulator's Play button if it does not start automatically. No repository checkout, local server, or source-file assembly is needed.
 
-Move with the arrow keys; use the on-screen **A** button or **Space** to fire (click inside the simulator first). Shots follow the last movement axis, keeping that aim when you stop. In **Blocks**, the Shooter category exposes the weapon and soldier settings. After changing a setting, stop and start the simulator to recompile; fast restart can reuse the previous compiled code.
+Move with the arrow keys; use the on-screen **A** button or **Space** to fire (click inside the simulator first). Shots follow the last movement axis, keeping that aim when you stop. In **Blocks**, the Modifiers category exposes maximum health, incoming damage percent, respawn seconds, and friendly fire. Shooter supplies mode selection and startup; its older weapon/soldier blocks remain for existing projects. After changing a setting, stop and start the simulator to recompile; fast restart can reuse the previous compiled code.
 
-For a short playtest, try the baseline, then change weapon damage from **1 to 3** and stop/start. The change applies to every soldier, not only your weapon. Look for understandable aiming, readable teams/HUD, noticeable weapon changes, and pacing that leaves room to experiment. Report anything confusing or frustrating. The current artifact is a development playtest build, not a fully verified release; lesson Markdown is not embedded.
+For a short playtest, try the baseline, then change incoming damage percent from **100 to 200** and stop/start. The change applies to every soldier, not only your weapon. Look for understandable aiming, readable teams/HUD, noticeable weapon changes, and pacing that leaves room to experiment. Report anything confusing or frustrating. The current artifact is a development playtest build, not a fully verified release; lesson Markdown is not embedded.
 
 The author-side export/import command and local artifact location are documented in VALIDATION.md; the local export's checksum is in `local/exports/validation.json`, and published releases are listed in PLAN.md.
 
@@ -84,7 +84,7 @@ The author-side export/import command and local artifact location are documented
 Use https://arcade.makecode.com/ with the Arcade target. To assemble the source in an editor project:
 
 1. Create a project and open JavaScript mode (MakeCode's TypeScript editor).
-2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, shooter.ts, messages.ts, weapons.ts, mod.ts, deathmatch.ts, gungame.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
+2. Copy the repository's pxt.json and all files it lists: main.ts, main.blocks, modifiers.ts, shooter.ts, messages.ts, weapons.ts, mod.ts, deathmatch.ts, gungame.ts, pathing.ts, tilemap.g.ts, and tilemap.g.jres. The asset files are required for the level, not optional screenshots.
 3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
 4. Run the simulator and check the Blocks customization surface and tilemap editor.
 
@@ -98,6 +98,7 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 
 - main.ts: creator-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
+- modifiers.ts: pre-start experience configuration and the Modifiers Blocks category.
 - shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
 - mod.ts: the Portal learning API (Mod Blocks category): events, score, teams, variables, messages and wait under Battlefield 6 Portal's names.
 - deathmatch.ts: first-team-to-ten rules, written with `mod` as a worked example.
@@ -120,6 +121,21 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage just the validated PNG and introduction for download, with supporting records kept separately, without publishing.
 - [Design and open work](PLAN.md): architecture, design decisions, releases and what is not yet verified.
+
+### Experience modifiers
+
+```typescript
+modifiers.setMaxHealth(100)
+modifiers.setIncomingDamagePercent(100)
+modifiers.setRespawnSeconds(5)
+modifiers.setFriendlyFire(false)
+```
+
+These are the explicit starting defaults. Put them before `shooter.startGame()`. They apply to everyone; the last call for each setting wins. Maximum health is rounded/clamped to 1–500, incoming damage percent to 0–200 in steps of 5 (100 = normal), and respawn seconds to 0–60, retaining fractional seconds. Zero incoming damage prevents damage; zero delay permits return on the next update if a spawn is clear. Later calls are ignored. Bots still aim only at opponents when friendly fire is enabled; teammate eliminations do not award kills, team points, or gun-game advancement. Arcade keeps fractional damage rather than rounding small hits away.
+
+For conversion, use literal numbers and booleans in top-level settings. Unsupported, nonliteral, or dynamic modifier calls are reported rather than guessed. Portal output applies the validated configuration through SDK actions; it does **not** include a website modifier-import file. Absolute health and respawn seconds are not Builder health/redeploy multipliers. Incoming damage's 100 = normal convention is an SDK-based working assumption; the SDK's five-percent rounding is mirrored in Arcade, but other Builder settings can affect the result. Arcade has no headshots or health regeneration. Keep Builder health/redeploy multipliers at their normal baseline when comparing.
+
+Legacy `shooter.setWeapon` and `setSoldiers` blocks remain available, but are not in the opening example. Their Arcade weapon settings are reported as unconverted; a short fire interval no longer secretly selects a Portal SMG. Choose weapon categories deliberately in mode rules.
 
 Baseline settings and mode selection apply before startGame(); later settings calls are ignored. **set shooter mode** chooses deathmatch (the baseline), gun game, or no mode; the last selection before startup wins. The older **use deathmatch rules** block still works and selects deathmatch. With no mode, the engine still runs combat and respawns but does not score eliminations or end a match automatically.
 
@@ -159,7 +175,7 @@ The Arcade to Portal converter turns a saved project PNG into files for a Battle
 
 In Portal's web builder, create an experience on Portal Sandbox, attach the `.spatial.json` map edits, and add the `.ts` script and `.strings.json` strings file to the rules. Rules that use Arcade-only blocks (sprites, info, game, and so on) are commented out in the script and listed as notes; message text must be typed into the message block so it can move to the strings file.
 
-Settings apply before startGame(); later settings calls are ignored. Damage and health are whole numbers, intervals are milliseconds, and speeds are pixels per second.
+Settings apply before startGame(); later settings calls are ignored. Declarative modifiers use health points, incoming-damage percent, seconds, and a boolean. Legacy Arcade weapon intervals use milliseconds and speeds use pixels per second.
 
 ## License
 

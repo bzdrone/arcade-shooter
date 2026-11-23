@@ -5,8 +5,9 @@
 namespace arcade {
     //@settings-start
     export const settings = {
-        damage: 1,          // Arcade weapon damage per hit
-        health: 3,          // Arcade soldier health
+        health: 100,
+        incomingDamagePercent: 100,
+        friendlyFire: false,
         respawnSeconds: 5,  // time before a soldier returns
         botMoveSpeed: mod.MoveSpeed.Walk,
         teamSize: 2,        // soldiers per team, humans first; at most 2, the bot spawners per team in the map
@@ -161,7 +162,7 @@ namespace arcade {
 
     export function start(): void {
         log('game mode started')
-        mod.SetFriendlyFire(false)
+        mod.SetFriendlyFire(settings.friendlyFire)
         for (const team of [1, 2])
             for (let i = 0; i < settings.teamSize; i++) {
                 const spawner = spawnerId(team, i)
@@ -192,7 +193,10 @@ namespace arcade {
         const k = key(player)
         const bot = isBot(player)
         log((bot ? 'bot ' : 'player ') + mod.GetObjId(player) + ' deployed on team ' + teamNumber(mod.GetTeam(player)) + ' as ' + k)
-        mod.SetPlayerIncomingDamageFactor(player, 3 * settings.damage / Math.max(1, settings.health))
+        mod.SetPlayerMaxHealth(player, settings.health)
+        mod.Heal(player, settings.health)
+        // SDK describes percent units; 100 = normal remains a working assumption.
+        mod.SetPlayerIncomingDamageFactor(player, settings.incomingDamagePercent)
         if (bot) {
             mod.AISetMoveSpeed(player, settings.botMoveSpeed)
             mod.AIBattlefieldBehavior(player)
@@ -205,7 +209,7 @@ namespace arcade {
         const k = key(player)
         log('player ' + mod.GetObjId(player) + ' (' + k + ') died')
         deaths[k] = (deaths[k] ?? 0) + 1
-        if (killer && !mod.Equals(killer, player)) {
+        if (killer && !mod.Equals(killer, player) && !mod.Equals(mod.GetTeam(killer), mod.GetTeam(player))) {
             const kk = key(killer)
             kills[kk] = (kills[kk] ?? 0) + 1
         }
@@ -242,11 +246,10 @@ namespace arcade {
         else mod.EndGameMode(winner as mod.Team)
     }
 
-    /** Arcade damage is in Arcade health points; Portal soldiers have 100 health. */
+    /** Scripted damage uses health points in both environments. */
     export function DealDamage(player: mod.Player, amount: number, giver?: mod.Player): void {
-        const scaled = amount * 100 / Math.max(1, settings.health)
-        if (giver) mod.DealDamage(player, scaled, giver)
-        else mod.DealDamage(player, scaled)
+        if (giver) mod.DealDamage(player, amount, giver)
+        else mod.DealDamage(player, amount)
     }
 
     export function GetPlayerKills(player: mod.Player): number {

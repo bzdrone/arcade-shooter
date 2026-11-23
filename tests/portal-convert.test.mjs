@@ -8,7 +8,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
 import { spawnSync } from 'node:child_process'
-import { createRequire } from 'node:module'
+import { createRequire, stripTypeScriptTypes } from 'node:module'
+import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import { lzmaDecompress } from '../site/converter/lzma.js'
 import { readProjectPng, readTilemaps, decodeLzmaJsText } from '../site/converter/project.js'
@@ -187,17 +188,17 @@ test('converts the deathmatch and gun game modes', () => {
 })
 
 test('runtime settings substitution accepts Windows and Unix line endings', () => {
-    const main = withMode('None').replace('shooter.setWeapon(1, 750, 80)', 'shooter.setWeapon(2, 300, 80)')
+    const main = withMode('None').replace('setIncomingDamagePercent(100)', 'setIncomingDamagePercent(150)')
     for (const newline of ['\n', '\r\n']) {
         const result = convertProject(project(main), runtime.replace(/\r?\n/g, newline))
-        assert.match(result.files['test.ts'], /damage: 2,/)
-        assert.match(result.files['test.ts'], /startWeapon: 1,/)
+        assert.match(result.files['test.ts'], /incomingDamagePercent: 150,/)
+        assert.match(result.files['test.ts'], /startWeapon: 0,/)
         assert.doesNotMatch(result.files['test.ts'], /@settings-start|@settings-end/)
     }
 })
 
 test('converts creator rules: waits, variables, messages and Arcade-only blocks', () => {
-    const main = withMode('None').replace('shooter.setWeapon(1, 750, 80)', 'shooter.setWeapon(2, 300, 80)') + `
+    const main = withMode('None').replace('setIncomingDamagePercent(100)', 'setIncomingDamagePercent(150)') + `
 function countdown (seconds: number) {
     for (let index = 0; index <= seconds - 1; index++) {
         mod.DisplayNotificationMessage(mod.Message("Starting in " + (seconds - index)))
@@ -231,8 +232,8 @@ mod.OnPlayerDied(function (eventPlayer, eventOtherPlayer) {
     assert.match(s, /mod\.Message\(mod\.stringkeys\.startingIn, \(seconds - index\)\)/)
     assert.match(s, /\/\/ Not converted, info\.changeScoreBy is Arcade only: info\.changeScoreBy\(1\)/)
     assert.match(s, /arcade\.SetVariable\(arcade\.ObjectVariable\(eventPlayer, 0\), arcade\.GetVariable/)
-    assert.match(s, /damage: 2,/)
-    assert.match(s, /startWeapon: 1,/, 'a fast fire interval starts players with the SMG')
+    assert.match(s, /incomingDamagePercent: 150,/)
+    assert.match(s, /startWeapon: 0,/, 'fire interval does not select a Portal weapon')
     const strings = JSON.parse(r.files['test.strings.json'])
     assert.equal(strings.startingIn, 'Starting in {}')
     assert.equal(strings.hasAStreak, '{} has a streak')
@@ -246,6 +247,46 @@ test('explains projects it cannot convert', () => {
     assert.match(broken.report.errors.join(), /main\.ts: could not read the code/)
     const tooMany = convertProject(project(withMode('None') + '\nmod.OnGameModeStarted(function () {\n    mod.DisplayNotificationMessage(mod.Message("{} {} " + 1 + 2, 3, 4))\n})\n'), runtime)
     assert.match(tooMany.report.errors.join(), /at most three values/)
+})
+
+test('modifier validation agrees between Arcade and conversion', () => {
+    const source = stripTypeScriptTypes(repoFiles['modifiers.ts'], { mode: 'transform' })
+    for (const [method, field, values] of [
+        ['setMaxHealth', 'health', [-10, 1, 125.6, 999]],
+        ['setIncomingDamagePercent', 'incomingDamagePercent', [-10, 0, 50.6, 999]],
+        ['setRespawnSeconds', 'respawnMs', [-1, 0, 0.25, 99]],
+        ['setFriendlyFire', 'friendlyFire', [true, false]]
+    ]) for (const value of values) {
+        const context = vm.createContext({}); vm.runInContext(source, context)
+        context.modifiers[method](value)
+        const result = convertProject(project(`tiles.setCurrentTilemap(tilemap\`trainingYard\`)\nmodifiers.${method}(${value})\nshooter.startGame()`), runtime)
+        assert.deepEqual(result.report.errors, [])
+        const key = { health: 'maxHealth', respawnMs: 'respawnSeconds' }[field] || field
+        const expected = field === 'respawnMs' ? context.modifiers[key] * 1000 : context.modifiers[key]
+        const actual = result.report.rules.mapped.join('\n')
+        assert.ok(result.files, actual)
+        const settingsKey = field === 'respawnMs' ? 'respawnSeconds' : field
+        assert.match(result.files['test.ts'], new RegExp(`${settingsKey}: ${field === 'respawnMs' ? expected / 1000 : expected},`))
+    }
+})
+
+test('modifier literals, ordering, unsupported settings and dynamic calls are reported', () => {
+    const base = 'tiles.setCurrentTilemap(tilemap`trainingYard`)\n'
+    for (const call of ['setMaxHealth(health)', 'setMaxHealth(50 + 50)', 'setFriendlyFire(1)', 'setMoveSpeed(2)', 'toString(2)']) {
+        const r = convertProject(project(base + `modifiers.${call}\nshooter.startGame()`), runtime)
+        assert.ok(r.report.errors.length, call)
+        assert.equal(r.files, null)
+    }
+    const r = convertProject(project(base + 'modifiers.setMaxHealth(50)\nmodifiers.setMaxHealth(150)\nmodifiers.setFriendlyFire(true)\nshooter.startGame()\nmodifiers.setMaxHealth(1)'), runtime)
+    assert.deepEqual(r.report.errors, [])
+    assert.match(r.files['test.ts'], /health: 150,/)
+    assert.match(r.files['test.ts'], /friendlyFire: true,/)
+    assert.match(r.report.warnings.join(), /after startGame/)
+    const dynamic = convertProject(project(base + 'mod.OnGameModeStarted(function () { modifiers.setMaxHealth(50) })\nshooter.startGame()'), runtime)
+    assert.match(dynamic.report.errors.join(), /literal top-level/)
+    const legacy = convertProject(project(base + 'shooter.setWeapon(1, 100, 80)\nshooter.startGame()'), runtime)
+    assert.match(legacy.files['test.ts'], /startWeapon: 0,/)
+    assert.match(legacy.report.warnings.join(), /Arcade-only/)
 })
 
 test('generated scripts type-check against the Portal SDK', { skip: !process.env.PORTAL_SDK && 'set PORTAL_SDK to the Portal SDK folder' }, async () => {

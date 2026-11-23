@@ -54,20 +54,20 @@ If your soldier disappears after being hit, wait a few seconds: you will return.
 Let's change just one number. Leave the other settings alone for now.
 
 1. Click **Blocks** at the top of the editor if you are not already there.
-2. In the blocks already on the workspace, find the block that begins **set weapon damage**. You do not need to add a new block.
-3. Change its **first number**, next to **damage**, from **1** to **3**. Keep the other two numbers at **750** and **80**. Damage means how much health a hit takes away.
+2. In the blocks already on the workspace, find **set incoming damage percent**. You do not need to add a new block.
+3. Change **100** to **200**. A value of 100 means normal damage; 200 doubles the health lost from each hit. Leave maximum health at **100**.
 4. Before playing, guess: will a soldier need more hits or fewer hits to be defeated?
 5. **Stop** the game preview, then press **Play** to start it again. Use stop and Play rather than the restart button so the game picks up your change.
 6. Play again and watch what happens when shots hit.
 
-This change makes hits stronger for **everyone**, including the red team. With the starting settings, it takes three hits to defeat a soldier. After your change, it takes one.
+This change makes hits stronger for **everyone**, including the red team. With the starting settings, it takes three pistol hits to defeat a soldier. After your change, it takes two. Arcade uses simplified weapons; the exact number of hits in Portal depends on its weapons and other experience settings.
 
-To undo the change, set damage back to **1**, then stop and play again.
+To undo the change, set incoming damage percent back to **100**, then stop and play again.
 
 ## You changed a game rule
 
 You changed a number, tried the game, and checked what happened. That is enough for a first session.
 
-Want to try another small experiment? Read [Activity 1: Change how shooting feels](https://github.com/bzdrone/arcade-shooter/blob/main/lessons/01-weapon-tuning.md) online. No extra download is needed. Save [writing your own game rules](https://github.com/bzdrone/arcade-shooter/blob/main/lessons/02-mod-rules.md) for later, once you are comfortable changing blocks.
+Want to try another small experiment? Read [Activity 1: Change experience modifiers](https://github.com/bzdrone/arcade-shooter/blob/main/lessons/01-weapon-tuning.md) online. No extra download is needed. Save [writing your own game rules](https://github.com/bzdrone/arcade-shooter/blob/main/lessons/02-mod-rules.md) for later, once you are comfortable changing blocks.
 
 These instructions are a separate handout; they do not appear inside the game. The game is shared under the [MIT license](https://github.com/bzdrone/arcade-shooter/blob/main/LICENSE).

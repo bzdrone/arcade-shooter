@@ -18,7 +18,7 @@ const messages = fs.readFileSync(path.join(root, 'messages.ts'), 'utf8').replace
 }`)
 // Same order as pxt.json: engine, messages, weapons, mod bridge, then modes that register with it.
 const read = name => fs.readFileSync(path.join(root, name), 'utf8')
-const source = stripTypeScriptTypes([read('pathing.ts'), shooter, messages, read('weapons.ts'), read('mod.ts'), mode, read('gungame.ts')].join('\n'), { mode: 'transform' })
+const source = stripTypeScriptTypes([read('pathing.ts'), read('modifiers.ts'), shooter, messages, read('weapons.ts'), read('mod.ts'), mode, read('gungame.ts')].join('\n'), { mode: 'transform' })
 
 function createGame(modifyLevel, mapName = 'trainingYard') {
     const level = require('./tilemap-fixture.cjs')(mapName)
@@ -72,7 +72,7 @@ function createGame(modifyLevel, mapName = 'trainingYard') {
                 ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
         })) }
     }
-    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, mod: context.mod, A, all, level, camera,
+    return { modifiers: context.modifiers, api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, mod: context.mod, A, all, level, camera,
         state,
         tick(time) { now = time; updates.forEach(handler => handler()) },
         runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
@@ -112,7 +112,7 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
     assert.equal(s.soldiers.length, 4)
     assert.deepEqual(Array.from(s.soldiers, x => x.team), [0, 0, 1, 1])
     assert.deepEqual(Array.from(s.soldiers, x => x.human), [true, false, false, false])
-    assert.deepEqual(Array.from(s.soldiers, x => x.health), [3, 3, 3, 3])
+    assert.deepEqual(Array.from(s.soldiers, x => x.health), [100, 100, 100, 100])
     assert.deepEqual(Array.from(s.soldiers, x => [x.sprite.x, x.sprite.y]), [[24, 40], [24, 72], [136, 40], [136, 72]])
     assert.ok(s.soldiers.every(x => x.human || x.navigation.speed === 10))
     assert.equal(g.all.length, 4)
@@ -158,7 +158,7 @@ for (const map of ['trainingYard', 'combatCompound']) for (const mode of ['Death
 
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
-    for (const name of ['main.ts','main.blocks','shooter.ts','messages.ts','weapons.ts','mod.ts','deathmatch.ts','gungame.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
+    for (const name of ['main.ts','main.blocks','modifiers.ts','shooter.ts','messages.ts','weapons.ts','mod.ts','deathmatch.ts','gungame.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
         assert.ok(manifest.files.includes(name)); assert.ok(fs.readFileSync(path.join(root, name), 'utf8').length)
     }
 })
@@ -205,7 +205,7 @@ test('cover blocks bot shots and bots pursue rather than shoot through it', () =
 test('touching soldiers causes no damage or points', () => {
     const g = createGame(); g.runMain()
     const s = g.state(); g.overlap(s.soldiers[0].sprite, s.soldiers[2].sprite)
-    assert.ok(s.soldiers.every(x => x.health === 3))
+    assert.ok(s.soldiers.every(x => x.health === 100))
     assert.equal(g.state().blueScore + g.state().redScore, 0)
 })
 
@@ -213,16 +213,16 @@ test('friendly fire is off, and a friendly shot can continue to an opponent', ()
     const g = createGame(); g.runMain()
     const s = g.state(), shot = g.shot(0)
     g.overlap(shot, s.soldiers[1].sprite)
-    assert.equal(s.soldiers[1].health, 3); assert.equal(shot.dead, false)
+    assert.equal(s.soldiers[1].health, 100); assert.equal(shot.dead, false)
     g.overlap(shot, s.soldiers[2].sprite)
-    assert.equal(s.soldiers[2].health, 2); assert.equal(shot.dead, true)
+    assert.equal(s.soldiers[2].health, 66); assert.equal(shot.dead, true)
 })
 
 test('consumed projectiles and defeated soldiers reject stale overlaps', () => {
-    const g = createGame(); g.api.setWeapon(3, 750, 80); g.mode.configure(); g.api.startGame()
+    const g = createGame(); g.api.setWeapon(100, 750, 80); g.mode.configure(); g.api.startGame()
     const s = g.state(), target = s.soldiers[2].sprite, shot = g.shot(0)
     g.overlap(shot, target); g.overlap(shot, target); g.overlap(shot, s.soldiers[3].sprite)
-    assert.equal(g.state().blueScore, 1); assert.equal(s.soldiers[3].health, 3)
+    assert.equal(g.state().blueScore, 1); assert.equal(s.soldiers[3].health, 100)
     g.overlap(g.shot(0), target); g.flush()
     assert.equal(g.state().blueScore, 1)
     assert.equal(s.soldiers[2].sprite, null)
@@ -233,13 +233,13 @@ for (const [name, slot, team] of [['human', 0, 1], ['friendly bot', 1, 1], ['red
         const g = createGame(); g.runMain(); g.tick(100)
         const s = g.state().soldiers[slot], old = s.sprite
         const first = g.shot(team); g.overlap(first, old)
-        assert.equal(s.health, 2); assert.equal(s.sprite, old)
-        g.overlap(g.shot(team), old); assert.equal(s.health, 1)
+        assert.equal(s.health, 66); assert.equal(s.sprite, old)
+        g.overlap(g.shot(team), old); assert.equal(s.health, 32)
         g.overlap(g.shot(team), old); assert.equal(s.sprite, null)
         assert.equal(s.respawnAt, 5100)
         if (slot === 0) { assert.equal(g.state().player, null); assert.match(g.hud()[1], /RESPAWN IN 5s/) }
         g.tick(5099); assert.equal(s.sprite, null)
-        g.tick(5100); assert.ok(s.sprite && s.sprite !== old); assert.equal(s.health, 3)
+        g.tick(5100); assert.ok(s.sprite && s.sprite !== old); assert.equal(s.health, 100)
         assert.equal(g.state().soldiers.length, 4)
         if (slot === 0) assert.equal(g.state().player, s.sprite)
     })
@@ -266,7 +266,7 @@ test('external sprite removal schedules respawn without an elimination point', (
 })
 
 for (const [team, slot, won] of [[0, 2, true], [1, 0, false]]) test(`team ${team} wins at ten eliminations`, () => {
-    const g = createGame(); g.api.setWeapon(3, 750, 80); g.mode.configure(); g.api.startGame()
+    const g = createGame(); g.api.setWeapon(100, 750, 80); g.mode.configure(); g.api.startGame()
     for (let i = 0; i < 10; i++) {
         g.tick(i * 5000)
         const sprite = g.state().soldiers[slot].sprite
@@ -293,7 +293,7 @@ test('settings clamp and remain immutable after startup', () => {
 test('engine alone emits persistent players without scoring or ending the match', () => {
     const g = createGame(), events = []
     g.api.onElimination((attacker, victim) => events.push([attacker, victim]))
-    g.api.setWeapon(3, 750, 80); g.api.startGame()
+    g.api.setWeapon(100, 750, 80); g.api.startGame()
     const attacker = g.state().players[0], victim = g.state().players[2], body = victim.soldier
     for (let i = 0; i < 11; i++) {
         g.tick(i * 5000)
@@ -318,11 +318,11 @@ test('real fired shots retain damage and attacker after weapon change and attack
     const initialBody = human.soldier
     g.A.pressed = true; g.tick(750); g.A.pressed = false
     const oldShot = g.state().shots.find(s => s.attacker === human).sprite
-    const upgraded = g.api.createWeapon(3, 100, 120)
+    const upgraded = g.api.createWeapon(100, 100, 120)
     g.api.giveWeapon(human, upgraded)
     assert.notEqual(ally.weapon, upgraded)
     g.overlap(oldShot, red.soldier.sprite)
-    assert.equal(red.soldier.health, 2, 'Old shot keeps original damage')
+    assert.equal(red.soldier.health, 66, 'Old shot keeps original damage')
     g.A.pressed = true; g.tick(1500); g.A.pressed = false
     const newShot = g.state().shots.find(s => s.attacker === human).sprite
     assert.equal(newShot.vx, 120)
@@ -350,7 +350,7 @@ test('deathmatch selection is idempotent and endMatch blocks later damage and re
     assert.equal(g.result, false)
     g.overlap(g.shot(0), g.state().players[3].soldier.sprite)
     g.tick(10000)
-    assert.equal(g.state().players[3].soldier.health, 3)
+    assert.equal(g.state().players[3].soldier.health, 100)
     assert.equal(g.state().players[2].soldier, null)
     g.api.endMatch(g.api.teamById(0))
     assert.equal(g.result, false)
@@ -368,7 +368,7 @@ test('deployment, numeric variables, scores and queries belong to persistent pla
     assert.equal(g.api.getVariable(red, 0), 0)
     g.api.setScore(human, 2); assert.equal(g.api.getScore(human), 2)
     assert.equal(g.api.getTargetScore(), 10)
-    g.api.dealDamage(red, 3, human)
+    g.api.dealDamage(red, 100, human)
     assert.equal(g.api.isAlive(red), false)
     assert.equal(g.api.getEliminations(human), 1); assert.equal(g.api.getDeaths(red), 1)
     g.tick(5000)
@@ -382,8 +382,8 @@ test('self-inflicted death has identical event players, no kill or deathmatch po
     const g = createGame(), events = []
     g.api.onElimination((a, v) => events.push([a, v])); g.runMain()
     const human = g.api.allPlayers()[0]
-    g.api.dealDamage(human, 3)
-    g.api.dealDamage(human, 3)
+    g.api.dealDamage(human, 100)
+    g.api.dealDamage(human, 100)
     assert.equal(events.length, 1)
     assert.equal(events[0][0], human); assert.equal(events[0][1], human)
     assert.equal(g.api.getEliminations(human), 0); assert.equal(g.api.getDeaths(human), 1)
@@ -428,7 +428,7 @@ test('weapon catalog has four distinct presets, clamped ranges and captured shot
     const g = createGame(); g.runMain()
     const presets = [0, 1, 2, 3].map(k => g.weapons.create(k))
     assert.deepEqual(presets.map(w => w.name), ['Pistol', 'SMG', 'Shotgun', 'Knife'])
-    assert.equal(presets[0].damage, 1); assert.equal(presets[0].interval, 750); assert.equal(presets[0].speed, 80)
+    assert.equal(presets[0].damage, 34); assert.equal(presets[0].interval, 750); assert.equal(presets[0].speed, 80)
     assert.equal(presets[0].range, 200)
     assert.ok(presets[1].interval < presets[0].interval)
     assert.ok(presets[2].damage > presets[0].damage)
@@ -481,7 +481,7 @@ for (const team of [0, 1]) test(`gun game individual ladder wins for team ${team
     const lateShotgun = fire()
     hit(fire())
     assert.equal(attacker.weapon.name, 'Knife')
-    g.api.dealDamage(attacker, 3)
+    g.api.dealDamage(attacker, 100)
     g.tick(20000)
     assert.equal(attacker.weapon.name, 'Knife'); assert.equal(g.api.getVariable(attacker, 0), 3)
     hit(lateShotgun)
@@ -526,9 +526,9 @@ test('mod events reach handlers registered after startup, with Portal player ord
     log.length = 0; g.tick(1)
     assert.deepEqual(log, [], 'Start runs once')
     const [human, , red] = g.api.allPlayers()
-    g.mod.DealDamage(red, 3, human)
+    g.mod.DealDamage(red, 100, human)
     assert.deepEqual(log, ['died RED 1 by YOU', 'kill YOU RED 1 -1'])
-    log.length = 0; g.mod.DealDamage(human, 3)
+    log.length = 0; g.mod.DealDamage(human, 100)
     assert.deepEqual(log, ['died YOU by YOU', 'kill YOU YOU -1'], 'Self-inflicted: same player twice')
     log.length = 0; g.tick(6000)
     assert.deepEqual(log, ['deployed YOU', 'deployed RED 1'])
@@ -549,7 +549,7 @@ test('mod teams use Portal numbering; score, target and end map onto the engine'
     assert.equal(m.GetGameModeScore(g.api.teamById(0)), 3); assert.equal(m.GetGameModeScore(red), 2)
     m.SetGameModeTargetScore(7); assert.equal(m.GetTargetScore(), 7)
     assert.equal(m.AllPlayers().length, 4)
-    m.DealDamage(red, 3, human)
+    m.DealDamage(red, 100, human)
     assert.equal(m.GetPlayerKills(human), 1); assert.equal(m.GetPlayerDeaths(red), 1)
     assert.equal(g.state().blueScore, 3, 'No mode: kills do not score by themselves')
     m.EndGameMode(red); assert.equal(g.result, false)
@@ -564,7 +564,7 @@ test('mod variables: player slots survive respawn, team and global slots are sep
     m.SetVariable(m.ObjectVariable(m.GetTeam(2), 4), 6)
     m.SetVariable(m.GlobalVariable(4), 7)
     m.SetVariable(m.GlobalVariable(32), 99); m.SetVariable(m.ObjectVariable(human, -1), 99)
-    m.DealDamage(red, 3, human); g.tick(6000)
+    m.DealDamage(red, 100, human); g.tick(6000)
     assert.ok(g.api.isAlive(red))
     assert.deepEqual([m.ObjectVariable(red, 4), m.ObjectVariable(m.GetTeam(1), 4), m.ObjectVariable(m.GetTeam(2), 4), m.GlobalVariable(4), m.GlobalVariable(32), m.ObjectVariable(human, 4)].map(m.GetVariable), [9, 5, 6, 7, 0, 0])
 })
@@ -606,7 +606,68 @@ test('weapons compatibility library gives categories and reports them', () => {
     assert.equal(w.current(human), -1, 'Baseline weapon is custom')
     w.give(human, w.Kind.Shotgun)
     assert.equal(w.current(human), w.Kind.Shotgun); assert.equal(w.current(ally), -1)
-    assert.equal(human.weapon.damage, 3)
+    assert.equal(human.weapon.damage, 100)
     assert.deepEqual([0, 1, 2, 3, -1, 9].map(w.name), ['Pistol', 'SMG', 'Shotgun', 'Knife', 'Custom', 'Custom'])
     assert.equal(w.kind(w.Kind.Knife), 3); assert.equal(w.kindOf(null), -1)
+})
+
+test('modifiers clamp, last setting wins, and startup locks configuration', () => {
+    const g = createGame(), m = g.modifiers
+    m.setMaxHealth(-1); assert.equal(m.maxHealth, 1)
+    m.setMaxHealth(999); assert.equal(m.maxHealth, 500)
+    m.setMaxHealth(125.6); m.setMaxHealth(NaN); m.setMaxHealth(Infinity)
+    m.setIncomingDamagePercent(-1); assert.equal(m.incomingDamagePercent, 0)
+    m.setIncomingDamagePercent(999); assert.equal(m.incomingDamagePercent, 200)
+    m.setIncomingDamagePercent(50)
+    m.setRespawnSeconds(99); assert.equal(m.respawnSeconds, 60)
+    m.setRespawnSeconds(-1); assert.equal(m.respawnSeconds, 0)
+    m.setRespawnSeconds(0.25); m.setFriendlyFire(true)
+    g.api.startGame()
+    assert.equal(g.state().players[0].soldier.health, 126)
+    m.setMaxHealth(1); m.setIncomingDamagePercent(0); m.setRespawnSeconds(60); m.setFriendlyFire(false)
+    assert.deepEqual([m.maxHealth, m.incomingDamagePercent, m.respawnSeconds, m.friendlyFire], [126, 50, 0.25, true])
+    g.api.dealDamage(g.state().players[2], 252, g.state().players[0])
+    assert.equal(g.state().players[2].respawnAt, 250)
+    g.tick(249); assert.equal(g.state().players[2].soldier, null)
+    g.tick(250); assert.equal(g.state().players[2].soldier.health, 126)
+})
+
+test('incoming percent scales projectile and scripted damage without rounding small hits away', () => {
+    const g = createGame(); g.modifiers.setIncomingDamagePercent(50); g.api.startGame()
+    const [human, , red] = g.state().players
+    g.overlap(g.shot(0), red.soldier.sprite); assert.equal(red.soldier.health, 83)
+    g.api.dealDamage(red, 1, human); assert.equal(red.soldier.health, 82.5)
+    const immune = createGame(); immune.modifiers.setIncomingDamagePercent(0); immune.api.startGame()
+    immune.api.dealDamage(immune.state().players[2], 9999)
+    assert.equal(immune.state().players[2].soldier.health, 100)
+})
+
+test('zero respawn delay returns on the next update without adding players', () => {
+    const g = createGame(); g.modifiers.setRespawnSeconds(0); g.api.startGame()
+    const red = g.state().players[2], old = red.soldier.sprite
+    g.api.dealDamage(red, 100)
+    assert.equal(red.soldier, null); assert.equal(red.respawnAt, 0)
+    g.tick(0)
+    assert.notEqual(red.soldier.sprite, old)
+    assert.equal(g.state().players.length, 4)
+})
+
+test('friendly elimination does not advance a gun-game ladder', () => {
+    const g = createGame(); g.modifiers.setFriendlyFire(true); g.api.setMode(g.api.Mode.GunGame); g.api.startGame(); g.tick(0)
+    const [human, ally] = g.state().players
+    for (let i = 0; i < 3; i++) g.overlap(g.shot(0), ally.soldier.sprite)
+    assert.equal(ally.soldier, null)
+    assert.equal(g.api.getVariable(human, 0), 0)
+    assert.equal(human.weapon.name, 'Pistol'); assert.equal(human.eliminations, 0)
+    assert.equal(g.api.getScore(g.api.getTeam(human)), 1)
+})
+
+test('friendly fire consumes shots once, ignores the shooter, and awards no kill or mode point', () => {
+    const g = createGame(); g.modifiers.setFriendlyFire(true); g.mode.configure(); g.api.startGame(); g.tick(0)
+    const [human, ally] = g.state().players, shot = g.shot(0)
+    g.overlap(shot, human.soldier.sprite); assert.equal(shot.dead, false)
+    g.overlap(shot, ally.soldier.sprite); assert.equal(ally.soldier.health, 66)
+    g.overlap(shot, ally.soldier.sprite); assert.equal(ally.soldier.health, 66)
+    g.api.dealDamage(ally, 100, human)
+    assert.equal(ally.deaths, 1); assert.equal(human.eliminations, 0); assert.equal(g.state().blueScore, 0)
 })

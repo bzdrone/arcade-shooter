@@ -131,6 +131,11 @@ async function main() {
                 screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
             return
         }
+        if (process.argv.includes('--modifiers')) {
+            await require('./engine-features.cjs').checkModifiers({ sim, page, command, editor, text, button, sleep,
+                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
+            return
+        }
         if (process.argv.includes('--mod')) {
             await require('./engine-features.cjs').checkMod({ sim, page, command, editor, text, button, sleep,
                 screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
@@ -214,7 +219,7 @@ async function main() {
         assert.equal(released.nextShotAt, firing.nextShotAt, 'Released A stops firing')
         assert.equal(released.facingY, -1, 'Aim persists at rest')
         assert.equal(released.soldiers.length, 4, 'Exactly four soldier slots')
-        assert.ok(released.soldiers.every(s => s.health === 3), 'All soldiers share health')
+        assert.ok(released.soldiers.every(s => s.health === 100), 'All soldiers share health')
         await button(3, true)
         await sleep(2200)
         const boundary = await snapshot()
@@ -236,7 +241,7 @@ async function main() {
         // Force TS decompilation with a non-default value; do not merely load cached XML.
         await editor.evaluate(() => {
             const model = monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts'))
-            model.setValue(model.getValue().replace('setWeapon(1, 750, 80)', 'setWeapon(2, 750, 80)'))
+            model.setValue(model.getValue().replace('setIncomingDamagePercent(100)', 'setIncomingDamagePercent(200)'))
         })
         await command('switchblocks')
         await editor.waitForFunction(() => document.querySelector('.blocklySvg') && /start\s+shooter/.test(document.body.innerText), { timeout: 30000 })
@@ -244,17 +249,17 @@ async function main() {
             const B = pxt.blocks.requireBlockly()
             const workspace = B.common.getMainWorkspace()
             const all = workspace.getAllBlocks(false)
-            const weapon = all.find(b => b.type === 'shooter_set_weapon')
-            const damage = weapon.getInputTargetBlock('damage')
-            const result = { types: all.map(b => b.type), damage: damage.getFieldValue('NUM'),
+            const modifier = all.find(b => b.type === 'modifiers_incoming_damage')
+            const damage = modifier.getInputTargetBlock('value')
+            const result = { types: all.map(b => b.type), damage: damage.getFieldValue(damage.getField('SLIDER') ? 'SLIDER' : 'NUM'),
                 shooterCategory: document.body.innerText.includes('Shooter') }
             // Force Blocks compilation too, rather than accepting cached main.ts.
-            damage.setFieldValue('4', 'NUM')
+            damage.setFieldValue('150', damage.getField('SLIDER') ? 'SLIDER' : 'NUM')
             return result
         })
-        assert.equal(Number(blocks.damage), 2, 'TS argument survives decompilation')
+        assert.equal(Number(blocks.damage), 200, 'TS argument survives decompilation')
         assert.equal(blocks.shooterCategory, true)
-        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
+        for (const type of ['modifiers_max_health', 'modifiers_incoming_damage', 'modifiers_respawn_seconds', 'modifiers_friendly_fire', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)), 'No grey JavaScript blocks')
         await page.screenshot({ path: path.join(artifacts, 'blocks.png') })
         const blockDocs = await require('./block-docs.cjs')(editor)
@@ -272,9 +277,11 @@ async function main() {
         }
         await sleep(500)
         await command('switchjavascript')
-        await editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setWeapon\(4,\s*750,\s*80\)/.test(m.getValue())), { timeout: 30000 })
+        await editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setIncomingDamagePercent\(150\)/.test(m.getValue())), { timeout: 30000 })
         const roundTrip = await editor.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
-        assert.match(roundTrip, /setSoldiers\(3,\s*10,\s*5000\)/)
+        assert.match(roundTrip, /modifiers.setMaxHealth\(100\)/)
+        assert.match(roundTrip, /modifiers.setRespawnSeconds\(5\)/)
+        assert.match(roundTrip, /modifiers.setFriendlyFire\(false\)/)
         assert.match(roundTrip, /shooter.startGame\(\)/)
         assert.match(roundTrip, /shooter.setMode\(shooter.Mode.Deathmatch\)/)
         assert.ok(!roundTrip.includes('namespace shooter'), 'Implementation is not inlined into main.ts')
@@ -306,8 +313,8 @@ async function main() {
                 assert.equal(importedState.soldiers.filter(s => s.team === 1 && s.alive).length, 2)
                 assert.equal(await importedSim.evaluate(() => {
                     const g = pxsim.runtime.globals
-                    return g[Object.keys(g).find(k => k.startsWith('weaponDamage___'))]
-                }), 1)
+                    return g[Object.keys(g).find(k => k.startsWith('incomingDamagePercent___'))]
+                }), 100)
                 await command('switchblocks', {}, imported.page)
                 await imported.editor.waitForFunction(() => document.querySelector('.blocklySvg') && /start\s+shooter/.test(document.body.innerText), { timeout: 30000 })
                 // The initial Blocks load can still be applying cached XML after the tab appears.
@@ -315,14 +322,15 @@ async function main() {
                 const types = await imported.editor.evaluate(() => {
                     const workspace = pxt.blocks.requireBlockly().common.getMainWorkspace()
                     const all = workspace.getAllBlocks(false)
-                    all.find(b => b.type === 'shooter_set_weapon').getInputTargetBlock('damage').setFieldValue('3', 'NUM')
+                    const value = all.find(b => b.type === 'modifiers_incoming_damage').getInputTargetBlock('value')
+                    value.setFieldValue('200', value.getField('SLIDER') ? 'SLIDER' : 'NUM')
                     return all.map(b => b.type)
                 })
-                for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(types.includes(type))
+                for (const type of ['modifiers_max_health', 'modifiers_incoming_damage', 'modifiers_respawn_seconds', 'modifiers_friendly_fire', 'shooter_start_game', 'shooter_set_mode']) assert.ok(types.includes(type))
                 assert.ok(!types.some(type => /typescript|javascript/.test(type)))
                 await sleep(1200)
                 await command('switchjavascript', {}, imported.page)
-                await imported.editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setWeapon\(3,\s*750,\s*80\)/.test(m.getValue())), { timeout: 30000 }).catch(async error => {
+                await imported.editor.waitForFunction(() => monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && /setIncomingDamagePercent\(200\)/.test(m.getValue())), { timeout: 30000 }).catch(async error => {
                     console.log('IMPORT ROUNDTRIP', await imported.editor.evaluate(() => monaco.editor.getModels().filter(m => m.uri.path.endsWith('/main.ts')).map(m => m.getValue())))
                     throw error
                 })
@@ -333,13 +341,13 @@ async function main() {
                 await importedSim.waitForFunction(() => {
                     if (typeof pxsim === 'undefined' || !pxsim.runtime?.running) return false
                     const g = pxsim.runtime.globals
-                    return g[Object.keys(g).find(k => k.startsWith('weaponDamage___'))] === 3
+                    return g[Object.keys(g).find(k => k.startsWith('incomingDamagePercent___'))] === 200
                 }, { timeout: 30000 })
                 await imported.page.screenshot({ path: path.join(artifacts, 'png-import.png') })
                 const result = { file: path.relative(root, projectPNG.output), sha256: projectPNG.sha256,
                     bytes: projectPNG.bytes.length, requiredFiles: manifest.files,
                     checks: ['Embedded baseline sources match', 'Fresh-context PNG drag/drop import opens directly in Blocks', '2v2 simulator starts',
-                        'Custom Blocks appear without grey JavaScript', 'Blocks edit round-trips and changes runtime damage to 3'],
+                        'Custom Blocks appear without grey JavaScript', 'Blocks edit round-trips and changes runtime incoming damage to 200 percent'],
                     limitations: 'Full gameplay, physical controls, lesson instructions and hosted-editor import remain unverified.' }
                 fs.writeFileSync(path.join(root, 'local/exports/validation.json'), JSON.stringify(result, null, 2))
                 console.log('PASS: exact project PNG imports in fresh context, runs, and remains editable in Blocks')
@@ -350,6 +358,7 @@ async function main() {
             const ctx = { sim, page, command, editor, text, button, sleep,
                 screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) }
             const features = require('./engine-features.cjs')
+            await features.checkModifiers(ctx)
             await features.checkMessages(ctx)
             await features.checkWeapons(ctx)
             await features.checkModes(ctx)

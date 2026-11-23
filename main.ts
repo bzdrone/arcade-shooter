@@ -1,10 +1,10 @@
-// Start by modifying these settings.
-// Click the tilemap to edit cover, walls, and the blue/red soldier spawn tiles.
+// Click the tilemap to edit walls, cover, and team spawn points.
 tiles.setCurrentTilemap(tilemap`trainingYard`)
-// Weapon: damage per hit, minimum milliseconds between shots, projectile speed.
-shooter.setWeapon(1, 750, 80)
-// All soldiers: health, bot movement speed, minimum respawn delay.
-shooter.setSoldiers(3, 10, 5000)
-// Choose deathmatch, gun game, or no mode (combat without scoring/win rules).
+// Experience settings apply to everyone.
+modifiers.setMaxHealth(100)
+modifiers.setIncomingDamagePercent(100)
+modifiers.setRespawnSeconds(5)
+modifiers.setFriendlyFire(false)
+// Choose deathmatch, gun game, or no mode.
 shooter.setMode(shooter.Mode.Deathmatch)
 shooter.startGame()

@@ -49,8 +49,10 @@ async function main() {
         await page.evaluate(() => Array.from(document.querySelectorAll('span,div')).find(e => e.textContent.trim() === 'JavaScript' && !e.children.length).click())
         await page.waitForFunction(() => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().includes('shooter.startGame()')), { timeout: 30000 })
         const main = await page.evaluate(() => monaco.editor.getModels().find(m => m.uri.path.endsWith('/main.ts')).getValue())
-        assert.match(main, /shooter.setWeapon\(1,\s*750,\s*80\)/)
-        assert.match(main, /shooter.setSoldiers\(3,\s*10,\s*5000\)/)
+        assert.match(main, /modifiers.setMaxHealth\(100\)/)
+        assert.match(main, /modifiers.setIncomingDamagePercent\(100\)/)
+        assert.match(main, /modifiers.setRespawnSeconds\(5\)/)
+        assert.match(main, /modifiers.setFriendlyFire\(false\)/)
         // A Monaco model can exist before the tab transition has completed.
         await page.waitForFunction(() => document.querySelector('.monaco-editor')?.getBoundingClientRect().width > 0, { timeout: 30000 })
         await new Promise(resolve => setTimeout(resolve, 1500))
@@ -58,7 +60,7 @@ async function main() {
         const soldiers = (await sim.evaluate(() => team.snapshot())).soldiers
         assert.equal(soldiers.filter(s => s.team === 0 && s.alive).length, 2)
         assert.equal(soldiers.filter(s => s.team === 1 && s.alive).length, 2)
-        assert.ok(soldiers.every(s => s.health === 3))
+        assert.ok(soldiers.every(s => s.health === 100))
         await page.screenshot({ path: path.join(evidence, 'hosted-png.png') })
         await page.evaluate(() => {
             const label = Array.from(document.querySelectorAll('span,div')).find(e => e.textContent.trim() === 'Blocks' && e.children.length === 0)
@@ -72,7 +74,7 @@ async function main() {
                 types: (B.common?.getMainWorkspace?.() || B.getMainWorkspace()).getAllBlocks(false).map(b => b.type) }
         })
         assert.equal(blocks.category, true)
-        for (const type of ['shooter_set_weapon', 'shooter_set_enemies', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
+        for (const type of ['modifiers_max_health', 'modifiers_incoming_damage', 'modifiers_respawn_seconds', 'modifiers_friendly_fire', 'shooter_start_game', 'shooter_set_mode']) assert.ok(blocks.types.includes(type))
         assert.ok(!blocks.types.some(type => /typescript|javascript/.test(type)))
         const blockDocs = await require('./block-docs.cjs')(page)
         fs.writeFileSync(path.join(evidence, 'hosted-block-docs.json'), JSON.stringify(blockDocs, null, 2))

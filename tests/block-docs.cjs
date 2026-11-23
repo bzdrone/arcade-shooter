@@ -3,6 +3,10 @@ const assert = require('node:assert/strict')
 
 module.exports = async function checkBlockDocs(editor) {
     const expected = {
+        modifiers_max_health: 'maximum health',
+        modifiers_incoming_damage: '100 is normal',
+        modifiers_respawn_seconds: 'seconds',
+        modifiers_friendly_fire: 'teammates',
         shooter_set_weapon: 'both teams',
         shooter_set_enemies: 'computer players',
         shooter_set_mode: 'No mode',

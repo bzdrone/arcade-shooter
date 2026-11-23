@@ -46,6 +46,11 @@ function simulatePortal() {
         Message: (key, ...args) => ({ key, args }),
         CustomNotificationSlots: { HeaderText: 'header' },
         DisplayCustomNotificationMessage: (message, slot) => sim.header.push({ slot, ...message }),
+        SetFriendlyFire: enabled => { sim.friendlyFire = enabled },
+        SetPlayerMaxHealth: (p, value) => { p.maxHealth = value },
+        SetPlayerIncomingDamageFactor: (p, value) => { p.incomingDamagePercent = value },
+        SetRedeployTime: (p, value) => { p.respawnSeconds = value },
+        Heal: (p, amount) => { p.healed = amount },
         SetGameModeScore: (target, score) => sim.scores.set(target, score),
         GetGameModeScore: target => sim.scores.get(target) ?? 0,
         SetGameModeTargetScore: score => { sim.target = score },
@@ -69,8 +74,9 @@ function simulatePortal() {
     return sim
 }
 
-async function load(mode) {
-    const files = { ...repoFiles, 'main.ts': repoFiles['main.ts'].replace(/shooter\.Mode\.\w+/, `shooter.Mode.${mode}`) }
+async function load(mode, beforeStart = '') {
+    const main = repoFiles['main.ts'].replace(/shooter\.Mode\.\w+/, `shooter.Mode.${mode}`).replace('shooter.startGame()', beforeStart + '\nshooter.startGame()')
+    const files = { ...repoFiles, 'main.ts': main }
     const script = convertProject({ meta: { name: `sim-${mode}` }, files }, runtime).files[`sim-${mode.toLowerCase()}.ts`]
     const js = stripTypeScriptTypes(script.replace(/^import \* as modlib from 'modlib';$/m, ''), { mode: 'transform' })
     const dir = path.join(root, 'local/portal-runtime-test')
@@ -139,6 +145,27 @@ test('bots fill both teams, respawn after the delay, and keep their seat when Po
     assert.ok(!sim.logs.some(l => /no bot arrived|error/.test(l)), 'no lost spawns or runtime errors:\n' + sim.logs.filter(l => /no bot arrived|error/.test(l)).join('\n'))
     const reused = sim.logs.filter(l => /spawner 1\d\d produced bot/.test(l)).map(l => l.match(/bot (\d+)/)[1])
     assert.ok(new Set(reused).size < reused.length, 'the simulation did reuse player ids')
+})
+
+test('validated modifiers reach Portal SDK calls for humans and bot deployments', async () => {
+    const sim = simulatePortal()
+    const events = await load('None', 'modifiers.setMaxHealth(150)\nmodifiers.setIncomingDamagePercent(50)\nmodifiers.setRespawnSeconds(2)\nmodifiers.setFriendlyFire(true)')
+    const human = sim.join(1, false)
+    events.OnPlayerJoinGame(human); events.OnGameModeStarted(); events.OnPlayerDeployed(human)
+    assert.equal(sim.friendlyFire, true)
+    assert.equal(human.respawnSeconds, 2)
+    await run(sim, events, 6)
+    for (const p of sim.players) {
+        assert.equal(p.maxHealth, 150)
+        assert.equal(p.incomingDamagePercent, 50)
+        assert.equal(p.healed, 150)
+    }
+    const red = bots(sim, 2)[0]
+    kill(sim, events, red, human)
+    await run(sim, events, 1); assert.equal(bots(sim, 2).length, 1)
+    await run(sim, events, 4)
+    assert.equal(bots(sim, 2).length, 2)
+    assert.ok(bots(sim, 2).every(p => p.maxHealth === 150 && p.incomingDamagePercent === 50))
 })
 
 test('a bot keeps its variables, weapon and level across lives', async () => {

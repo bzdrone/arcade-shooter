@@ -2,9 +2,10 @@
 const assert = require('node:assert/strict')
 const teamSimulator = require('./team-simulator.cjs')
 
-async function variant(ctx, extra, mode = 'Deathmatch') {
-    const main = ctx.text['main.ts'].replace('shooter.Mode.Deathmatch', 'shooter.Mode.' + mode) + '\n' + extra
-    await ctx.command('importproject', { project: { text: { ...ctx.text, 'main.ts': main } } })
+async function variant(ctx, extra, mode = 'Deathmatch', beforeStart = '') {
+    const main = ctx.text['main.ts'].replace('shooter.Mode.Deathmatch', 'shooter.Mode.' + mode).replace('shooter.startGame()', beforeStart + '\nshooter.startGame()') + '\n' + extra
+    const manifest = { ...JSON.parse(ctx.text['pxt.json']), preferredEditor: 'tsprj' }
+    await ctx.command('importproject', { project: { text: { ...ctx.text, 'pxt.json': JSON.stringify(manifest), 'main.ts': main } } })
     await ctx.editor.waitForFunction(main => typeof monaco !== 'undefined' && monaco.editor.getModels().some(m => m.uri.path.endsWith('/main.ts') && m.getValue().replace(/\r\n/g, '\n') === main.replace(/\r\n/g, '\n')), {}, main)
     await ctx.command('stopsimulator'); await ctx.command('startsimulator'); await ctx.sleep(1000)
     ctx.sim = await ctx.page.waitForFrame(f => f.url().includes('---simulator'))
@@ -46,7 +47,7 @@ shooter.giveWeapon(shooter.allPlayers()[2], weapons.create(weapons.Kind.Knife))
         team.freezeBots(); [[24,24],[24,88],[88,24],[136,88]].forEach((p,i) => team.place(i,...p))
     })
     await ctx.button(5, true); await ctx.sleep(850); await ctx.button(5, false); await ctx.sleep(600)
-    assert.equal(await ctx.sim.evaluate(() => team.slots()[2].health), 3, 'Short shot cannot reach a distant target')
+    assert.equal(await ctx.sim.evaluate(() => team.slots()[2].health), 100, 'Short shot cannot reach a distant target')
     assert.equal(await ctx.sim.evaluate(() => team.snapshot().blueShots), 0, 'Range expires before old 2.5s cap')
     await ctx.sim.evaluate(() => {
         team.place(0,40,24)
@@ -134,7 +135,8 @@ async function checkModes(ctx) {
         console.log(`PASS: real gun game team ${winningTeam} completes all four weapons, team victory and button restart`)
     }
     const legacy = ctx.text['main.ts'].replace('shooter.setMode(shooter.Mode.Deathmatch)', 'deathmatch.configure()')
-    await ctx.command('importproject', { project: { text: { ...ctx.text, 'main.ts': legacy } } })
+    const legacyManifest = { ...JSON.parse(ctx.text['pxt.json']), preferredEditor: 'tsprj' }
+    await ctx.command('importproject', { project: { text: { ...ctx.text, 'pxt.json': JSON.stringify(legacyManifest), 'main.ts': legacy } } })
     await ctx.sleep(1000); await ctx.command('switchblocks'); await ctx.sleep(800)
     assert.equal(await ctx.editor.evaluate(() => pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false).some(b => b.type === 'deathmatch_configure')), true)
     console.log('PASS: three-way mode enum round-trips, no-mode runtime and legacy deathmatch block retained')
@@ -226,4 +228,33 @@ async function checkMod(ctx) {
     await ctx.sim.waitForFunction(() => team.get('targetScore') === 2, { timeout: 5000 })
     console.log('PASS: creator mod rules (no mode) run, wait without blocking, and round-trip through Mod/Weapons Blocks with no grey blocks')
 }
-module.exports = { variant, checkMessages, checkWeapons, checkModes, checkMod, learnerRules }
+async function checkModifiers(ctx) {
+    await variant(ctx, '', 'Deathmatch', `
+modifiers.setMaxHealth(120)
+modifiers.setIncomingDamagePercent(50)
+modifiers.setRespawnSeconds(1)
+modifiers.setFriendlyFire(true)
+`)
+    await ctx.sim.evaluate(() => {
+        team.freezeBots(); [[24,24],[48,24],[136,88],[120,88]].forEach((p,i) => team.place(i,...p))
+        team.slots()[0].nextShotAt = 0
+    })
+    assert.ok((await ctx.sim.evaluate(() => team.snapshot())).soldiers.every(s => s.health === 120))
+    await ctx.button(5, true)
+    await ctx.sim.waitForFunction(() => team.slots()[1].health < 120, { timeout: 3000 })
+    await ctx.button(5, false)
+    assert.equal(await ctx.sim.evaluate(() => team.slots()[1].health), 103, 'Real friendly shot takes half of 34 health')
+    await ctx.sim.evaluate(() => {
+        team.slots()[1].health = 1
+        team.slots()[0].nextShotAt = 0
+    })
+    await ctx.button(5, true)
+    await ctx.sim.waitForFunction(() => !team.slots()[1].sprite, { timeout: 3000 })
+    await ctx.button(5, false)
+    assert.equal(await ctx.sim.evaluate(() => team.get('blueScore')), 0)
+    await ctx.sim.waitForFunction(() => !!team.slots()[1].sprite, { timeout: 2500 })
+    assert.equal(await ctx.sim.evaluate(() => team.slots()[1].health), 120)
+    await ctx.screenshot('modifiers.png')
+    console.log('PASS: real modifier health, half damage, friendly fire without scoring, and configured respawn')
+}
+module.exports = { variant, checkMessages, checkWeapons, checkModes, checkMod, checkModifiers, learnerRules }

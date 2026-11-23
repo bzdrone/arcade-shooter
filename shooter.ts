@@ -1,10 +1,10 @@
 // Two teams, two players each. The engine owns match state; modes own rules.
 //% color=#C75050 weight=100 block="Shooter"
 namespace shooter {
-    let weaponDamage = 1
+    let weaponDamage = 34
     let fireInterval = 750
     let projectileSpeed = 80
-    let soldierHealth = 3
+    let soldierHealth = 100
     let botSpeed = 10
     let respawnDelay = 5000
     let started = false
@@ -161,12 +161,12 @@ namespace shooter {
     /**
      * Set the starting weapon for both teams, not just you. Put this before start shooter.
      * After editing, stop the game preview and press Play to apply the change.
-     * @param damage health taken away by each hit; 3 defeats a starting soldier in one hit
+     * @param damage health taken away by each hit before the incoming damage modifier
      * @param interval wait between shots in milliseconds; 1000 is one second, and a smaller number means more shots
      * @param speed how fast shots travel in pixels per second; this does not change how often you shoot
      */
     //% blockId=shooter_set_weapon block="set weapon damage $damage fire interval (ms) $interval projectile speed $speed"
-    //% damage.defl=1 damage.min=1 interval.defl=750 interval.min=50 speed.defl=80 speed.min=10
+    //% damage.defl=34 damage.min=1 interval.defl=750 interval.min=50 speed.defl=80 speed.min=10
     //% weight=90
     export function setWeapon(damage: number, interval: number, speed: number): void {
         if (started) return
@@ -185,13 +185,13 @@ namespace shooter {
      */
     // Retain the original settings block ID so existing block references remain stable.
     //% blockId=shooter_set_enemies block="set soldier health $hitPoints bot speed $speed respawn delay (ms) $interval"
-    //% hitPoints.defl=3 hitPoints.min=1 speed.defl=10 speed.min=1 interval.defl=5000 interval.min=1000
+    //% hitPoints.defl=100 hitPoints.min=1 hitPoints.max=500 speed.defl=10 speed.min=1 interval.defl=5000 interval.min=1000
     //% weight=80
     export function setSoldiers(hitPoints: number, speed: number, interval: number): void {
         if (started) return
-        soldierHealth = Math.max(1, Math.round(hitPoints))
+        modifiers.setMaxHealth(hitPoints)
         botSpeed = Math.max(1, Math.round(speed))
-        respawnDelay = Math.max(1000, Math.round(interval))
+        modifiers.setRespawnSeconds(Math.max(1000, Math.round(interval)) / 1000)
     }
 
     function playerFor(sprite: Sprite): Player {
@@ -289,10 +289,10 @@ namespace shooter {
     function hit(shot: Sprite, sprite: Sprite, team: number, kind: number): void {
         if (finished || shot.kind() != kind) return
         const victim = playerFor(sprite)
-        if (!victim || victim.team == team) return // Friendly shots pass through.
+        if (!victim || (victim.team == team && !modifiers.friendlyFire)) return
         let fired: Shot = null
         for (let i = 0; i < shots.length; i++) if (shots[i].sprite == shot) fired = shots[i]
-        if (!fired) return
+        if (!fired || fired.attacker == victim) return
         shot.setKind(spentShotKind)
         shots.removeElement(fired)
         shot.destroy()
@@ -302,11 +302,13 @@ namespace shooter {
     /** Generic scripted damage. Omitting the attacker is self-inflicted damage. */
     export function dealDamage(victim: Player, damage: number, attacker: Player = null, weapon: Weapon = null): void {
         if (finished || !victim || !victim.soldier || damage <= 0) return
-        victim.soldier.health -= Math.max(0, Math.round(damage))
+        const scaledDamage = damage * modifiers.incomingDamagePercent / 100
+        if (scaledDamage <= 0) return
+        victim.soldier.health -= scaledDamage
         if (victim.soldier.health > 0) return
         if (!attacker) attacker = victim
         victim.deaths++
-        if (attacker != victim) attacker.eliminations++
+        if (attacker != victim && attacker.team != victim.team) attacker.eliminations++
         retire(victim) // Untrack before destruction or event callbacks run.
         for (let i = 0; i < eliminationHandlers.length; i++) eliminationHandlers[i](attacker, victim, weapon)
     }
@@ -357,6 +359,9 @@ namespace shooter {
     export function startGame(): void {
         if (started) return
         for (let i = 0; i < modeIds.length; i++) if (modeIds[i] == selectedMode) modeInitializers[i]()
+        soldierHealth = modifiers.maxHealth
+        respawnDelay = modifiers.respawnSeconds * 1000
+        modifiers.lock()
         started = true
         scene.setBackgroundColor(15)
         game.setGameOverScoringType(game.ScoringType.None)
