@@ -1,4 +1,4 @@
-// Stage two learner downloads; retain supporting files as local evidence. No dependencies,
+// Stage two creator downloads; retain supporting files as local evidence. No dependencies,
 // installs, network access, Git changes, tagging, or publication.
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -56,7 +56,7 @@ files.SHA256SUMS = Buffer.from(Object.entries(files).map(([name, bytes]) => `${h
 const output = path.join(root, 'local/releases', version)
 const evidence = path.join(root, 'local/releases', `${version}-evidence`)
 const learnerAssets = ['arcade-shooter.png', 'INTRO.md']
-for (const name of learnerAssets) assert.ok(files[name], `Missing learner asset: ${name}`)
+for (const name of learnerAssets) assert.ok(files[name], `Missing creator asset: ${name}`)
 // Reject old staging layouts rather than silently leaving extra upload candidates.
 if (fs.existsSync(output)) {
     for (const name of fs.readdirSync(output)) assert.ok(learnerAssets.includes(name) || name === 'release-notes.md',

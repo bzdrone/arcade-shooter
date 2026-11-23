@@ -134,6 +134,23 @@ test('builds Portal map edits from the training yard', () => {
     assert.equal(report.widthM, map.width * TILE_METRES)
 })
 
+test('compound converts with every mode and keeps its rooms, cover and team spawns', () => {
+    const map = readTilemaps(repoFiles).get('combatCompound')
+    const { report } = buildLevel(map)
+    assert.deepEqual(report.errors, [])
+    assert.deepEqual([report.widthM, report.blueSpawns, report.redSpawns], [100, 3, 3])
+    assert.equal(report.walls + report.coverTiles, map.walls.filter(Boolean).length)
+    assert.equal(report.coverTiles, 12)
+    for (const mode of ['Deathmatch', 'GunGame', 'None']) {
+        const main = withMode(mode).replace('tilemap`trainingYard`', 'tilemap`combatCompound`')
+        const result = convertProject(project(main), runtime)
+        assert.deepEqual(result.report.errors, [], mode)
+        assert.deepEqual(result.report.warnings, [], mode)
+        const spatial = JSON.parse(result.files['test.spatial.json'])
+        assert.equal(spatial.Portal_Dynamic.filter(o => o.type === 'SpawnPoint').length, 6)
+    }
+})
+
 test('reports maps that Portal cannot use', () => {
     const map = readTilemaps(repoFiles).get('trainingYard')
     const noRed = { ...map, indices: map.indices.map(i => map.tileset[i] === 'myTiles.redSpawn' ? 1 : i) }
@@ -169,7 +186,17 @@ test('converts the deathmatch and gun game modes', () => {
     assert.match(none.files['test.ts'], /export function OnPlayerDeployed\(eventPlayer: mod\.Player\): void \{\n {4}arcade\.deployed\(eventPlayer\)\n\}/)
 })
 
-test('converts learner rules: waits, variables, messages and Arcade-only blocks', () => {
+test('runtime settings substitution accepts Windows and Unix line endings', () => {
+    const main = withMode('None').replace('shooter.setWeapon(1, 750, 80)', 'shooter.setWeapon(2, 300, 80)')
+    for (const newline of ['\n', '\r\n']) {
+        const result = convertProject(project(main), runtime.replace(/\r?\n/g, newline))
+        assert.match(result.files['test.ts'], /damage: 2,/)
+        assert.match(result.files['test.ts'], /startWeapon: 1,/)
+        assert.doesNotMatch(result.files['test.ts'], /@settings-start|@settings-end/)
+    }
+})
+
+test('converts creator rules: waits, variables, messages and Arcade-only blocks', () => {
     const main = withMode('None').replace('shooter.setWeapon(1, 750, 80)', 'shooter.setWeapon(2, 300, 80)') + `
 function countdown (seconds: number) {
     for (let index = 0; index <= seconds - 1; index++) {

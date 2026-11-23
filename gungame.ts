@@ -1,5 +1,4 @@
-// Worked example: individual weapon ladders, written with the Portal-shaped `mod`
-// layer and the weapons compatibility library. Finishing the ladder wins for your team.
+// Advance through the weapons; a knife elimination wins for your team.
 namespace gungame {
     const levelSlot = 0
     const ladder = [weapons.Kind.Pistol, weapons.Kind.SMG, weapons.Kind.Shotgun, weapons.Kind.Knife]
@@ -26,14 +25,13 @@ namespace gungame {
         mod.OnPlayerEarnedKill(function (eventPlayer, eventOtherPlayer, eventWeapon) {
             if (mod.Equals(eventPlayer, eventOtherPlayer) || mod.Equals(mod.GetTeam(eventPlayer), mod.GetTeam(eventOtherPlayer))) return
             const current = level(eventPlayer)
-            // Arcade shots fly slowly: a late shot from an earlier weapon cannot skip a level.
             if (eventWeapon != ladder[current]) return
             if (current >= ladder.length - 1) {
                 mod.EndGameMode(eventPlayer)
                 return
             }
             mod.SetVariable(mod.ObjectVariable(eventPlayer, levelSlot), current + 1)
-            equip(eventPlayer) // Applies even if the player is waiting to respawn.
+            equip(eventPlayer)
             mod.DisplayGameModeMessage(mod.Message("{}: {} LEVEL {}", eventPlayer, weapons.name(ladder[current + 1]), current + 2))
         })
     }

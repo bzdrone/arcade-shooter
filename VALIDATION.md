@@ -18,6 +18,8 @@ Pathing checks decode committed tilemap assets, verify connected floor, exercise
 
 The additional engine/mode checks cover persistent player identity and fresh soldier bodies across respawn, weapon replacement and persistence, actual fired-shot damage/attacker snapshots after attacker death, projectile record cleanup, rules-free engine operation beyond ten eliminations, idempotent deathmatch selection, and match-end guards. The baseline assertions use a test-only compatibility view of split player/soldier state; no flattened slot API is shipped.
 
+Camera checks cover human follow/detach/respawn binding, removal of viewport confinement, off-screen projectile flags, and health-bar coordinate conversion with a screen-fixed HUD drawn on top. Camera motion, tilemap clamping and off-screen combat still require the real simulator check below.
+
 The mocks do **not** validate PXT compatibility, physics, sprite lifetime/off-screen cleanup, rendering, input, automatic zero-life game over, restart, Blocks, or PNG packaging. Passing them is not simulator verification.
 
 Message checks cover literal three-slot substitution, stable display names, all/human/team audience filtering, independent timers, FIFO bounds/overflow and firing while messages are active. With `--arena`, a disposable source variant also exercises actual HUD rendering, queue expiry and movement/firing; inspect `messages.png`. Variant source is not exported in the baseline PNG.
@@ -26,7 +28,7 @@ Weapon checks cover all four presets, range/color clamps, fire-time color/lifeti
 
 Mode checks cover last-wins `setMode` selection before startup, the legacy `deathmatch.configure()` path, engine-only operation, and gun game for both teams: per-player level persistence across death, independent teammate levels, team score as the highest level, old-weapon shots not advancing a level, and the final knife elimination winning for the finisher's team. `--arena` (or the faster `--modes`) also runs a controlled full gun-game ladder for each team with real bullets, checks the team result and game-over button restart, and round-trips the mode dropdown (gun game → no mode → gun game); inspect `gun-game-level-up.png`, `gun-blue-win.png`, `gun-red-win.png`, `gun-game-blocks.png`.
 
-Mod layer checks cover handlers registered after startup still receiving game start and first deployments on the first frame, Portal player order in died/kill events (including self-inflicted and the firing weapon category), Portal team numbering (1/2, 0 = none), score/target/end mapping, player/team/global variables (player slots survive respawn, out-of-range ignored), message placeholders and audience filtering, learner rules running with no built-in mode, and the weapons library. `--arena` (or the faster `--mod`) appends a learner-style program of Mod/Weapons blocks after `startGame()` in a disposable no-mode project, checks its start/deploy/kill/died handlers and a non-blocking `Wait` with a real elimination, then converts it TS → Blocks (every Mod/Weapons block type, no grey blocks, edits the target score) → TS → compile → run; inspect `mod-rules.png` and `mod-blocks.png`.
+Mod layer checks cover handlers registered after startup still receiving game start and first deployments on the first frame, Portal player order in died/kill events (including self-inflicted and the firing weapon category), Portal team numbering (1/2, 0 = none), score/target/end mapping, player/team/global variables (player slots survive respawn, out-of-range ignored), message placeholders and audience filtering, creator rules running with no built-in mode, and the weapons library. `--arena` (or the faster `--mod`) appends a creator-style program of Mod/Weapons blocks after `startGame()` in a disposable no-mode project, checks its start/deploy/kill/died handlers and a non-blocking `Wait` with a real elimination, then converts it TS → Blocks (every Mod/Weapons block type, no grey blocks, edits the target score) → TS → compile → run; inspect `mod-rules.png` and `mod-blocks.png`.
 
 ## Portal port type check
 
@@ -42,7 +44,7 @@ node tests/portal-site.cjs [project.png]                 # default: local/export
 
 The runtime simulation runs a converted gun game script against mocks of the Portal behaviour recorded in PORTAL.md: new bots take the lowest free player id (also across teams), one bot per AI spawner, bots leave after dying, and `RemoveEquipment` throws for empty slots. It checks that both teams fill and refill after the respawn delay through repeated deaths without extra or lost bots, that a bot keeps its seat, level and weapon across lives, and that later weapon changes clear only the filled slot. It cannot show how bots behave in Portal.
 
-The host tests build their own project PNGs from the repository files (JSON and, with the sibling toolchain's `lzma` package, LZMA payloads) and check the LZMA decoder against MakeCode's compressor. They check the training yard's map edits (every wall tile built, unique ids, links that resolve, team sides, everything inside the combat area), map errors (missing spawns, too large), deathmatch, gun game and no-mode output, a learner program (waits through a helper function, variables, joined message text, an Arcade-only statement), unreadable code, and too many message values. With `PORTAL_SDK` set they type-check the converted scripts for all three modes against the SDK; with a local export they also convert it end to end.
+The host tests build their own project PNGs from the repository files (JSON and, with the sibling toolchain's `lzma` package, LZMA payloads) and check the LZMA decoder against MakeCode's compressor. They check the training yard's map edits (every wall tile built, unique ids, links that resolve, team sides, everything inside the combat area), map errors (missing spawns, too large), deathmatch, gun game and no-mode output, a creator program (waits through a helper function, variables, joined message text, an Arcade-only statement), unreadable code, and too many message values. With `PORTAL_SDK` set they type-check the converted scripts for all three modes against the SDK; with a local export they also convert it end to end.
 
 The browser check serves `site/` locally, loads the PNG through the real file input at desktop size (light) and phone size (dark), and checks for page errors, a successful conversion, the downloads, both map previews and no horizontal scrolling. It also checks that the page's files are identical to the command-line converter's. Inspect `local/portal-site/desktop.png` and `phone.png`.
 
@@ -71,7 +73,7 @@ node ../pxt-arcade/node_modules/pxt-core/built/pxt.js install
 node ../pxt-arcade/node_modules/pxt-core/built/pxt.js build
 ```
 
-The CLI resolves the sibling Arcade target from its installation path; no global `pxt` executable is needed. Generated `pxt_modules/`, `built/`, and `tsconfig.json` are ignored and are not learner deliverables. For this configuration, simulator code is written to `built/debug/binary.js`. A successful build does not establish simulator behavior, Blocks compatibility, or hardware compatibility.
+The CLI resolves the sibling Arcade target from its installation path; no global `pxt` executable is needed. Generated `pxt_modules/`, `built/`, and `tsconfig.json` are ignored and are not creator deliverables. For this configuration, simulator code is written to `built/debug/binary.js`. A successful build does not establish simulator behavior, Blocks compatibility, or hardware compatibility.
 
 The tested checkout and toolchain warnings are recorded in PXT-ARCADE.md. Do not assume a successful target setup exit means every bundled package/tutorial built cleanly. Review npm audit findings before exposing or deploying the development server; do not run automatic breaking upgrades as part of game validation.
 
@@ -111,6 +113,18 @@ For the team/training-yard checks, run `node tests/editor-smoke.cjs --arena`. `t
 
 Controlled teleports reset that soldier's navigation waypoint and field refresh deadline, since retained waypoints from the old location otherwise create artificial wall stalls. Evidence includes `blue-win.png`, `red-win.png`, `arena-pathing.png`, and `result.json` under `local/editor-smoke/`.
 
+## Sample maps
+
+Run `node tests/editor-smoke.cjs --maps`. It starts both committed maps in deathmatch, gun game and no mode, checks four live soldiers and the expected mode target, then checks compound room-wall collision and passage through a courtyard doorway. The compound tilemap selection and mode block survive a TS → Blocks → TS round trip. Inspect `compound-courtyard.png`, `compound-rooms.png` and `maps-result.json` under ignored `local/editor-smoke/`.
+
+Host checks verify the compound's solid perimeter, all floor and spawns connected, three walkable spawns per team, and cross-map routes with the 8×8 soldier footprint. Converter checks build the compound with every mode and retain its walls, cover and six team spawn points. These are targeted checks, not a full match or a Portal playtest.
+
+## Larger maps and camera follow
+
+Run `node tests/editor-smoke.cjs --scrolling`. This imports a disposable **30×20**, 16-pixel tilemap variant (both resource data and generated declarations), leaving the default assets unchanged. It checks movement beyond the original viewport in both axes, camera follow and edge clamping, off-screen bot pursuit, a real projectile hitting an off-screen opponent, holding the view during human death, and following the new body at respawn. Perimeter walls must still contain the human. Screenshots and `scrolling-result.json` go under ignored `local/editor-smoke/`; inspect the health bars and fixed HUD in `scrolling-follow.png`, `scrolling-respawn-wait.png` and `scrolling-edge.png`. Synthetic input and controlled placement are not a natural playtest or a large-map performance benchmark. This variant is not a project-PNG artifact.
+
+For a creator-edited larger map, enlarge it using the tilemap editor, keep a solid perimeter and connected team spawns, then export/import the exact PNG and repeat movement, collision, HUD and respawn checks on that artifact.
+
 ## Repeatable project-PNG export/import
 
 With the same local toolchain and browser setup:
@@ -131,11 +145,11 @@ These checks need internet access. Exporting again may change image pixels and P
 ## Compilation and simulator
 
 - Import all manifest-listed source and asset files with the Arcade target; check for compile errors.
-- Confirm direction controls move the player and screen boundaries contain it.
+- Confirm direction controls move the player and perimeter walls contain it, rather than the current viewport.
 - Hold A: shots fire repeatedly with the configured interval, aiming along the last movement axis.
 - Release A: firing stops. Remaining projectiles disappear.
 - Start with a blue human (white helmet stripe), one blue bot, and two red bots at their team's spawn tiles. There must be exactly four soldier slots; death/respawn never adds a fifth.
-- The level fits on screen without scrolling. Perimeter and cover stop the player; projectiles disappear on wall impact.
+- The default level fits on screen. On a larger map the camera follows the human in both axes and clamps at map edges; bots can move and fight off screen. Health bars stay over soldiers; scores, messages and respawn status stay fixed on screen. Perimeter and cover stop the player; projectiles disappear on wall impact or range expiry, not just on leaving the view. Human death holds the camera view; respawn follows the new body.
 - Bots route around both barriers from either side without clipping corners or sticking to walls. Move around a corner mid-chase and verify pursuit adapts.
 - Close a passage in the level editor: bots must respect the new wall markings. An unreachable bot stops; reopening a passage permits routing again.
 - Move/edit the blue/red spawn tiles; startup uses their identities. Missing, blocked, or disconnected required points report an invalid layout rather than starting an unfair/inaccessible match. Keep two walkable points per team.
@@ -165,10 +179,10 @@ These checks need internet access. Exporting again may change image pixels and P
 - Repeat gameplay and Blocks checks against the imported artifact.
 - Make a settings change after import and verify its effect after restart.
 - Test the exact file intended for distribution; do not substitute a re-encoded image.
-- Confirm learner instructions do not require cloning the repository or assembling source files. Do not assume the Markdown lesson drafts are embedded in the PNG.
+- Confirm creator instructions do not require cloning the repository or assembling source files. Do not assume the Markdown lesson drafts are embedded in the PNG.
 
 ## Learning activity
 
 - Follow the introduction's tutorial-project PNG save/import practice, then import the shooter and change damage from 1 to 3.
 - Complete activity 1's firing-interval experiment and optional projectile-speed experiment.
-- Check whether the learner can explain fire interval versus projectile speed and damage versus hits-to-defeat.
+- Check whether the creator can explain fire interval versus projectile speed and damage versus hits-to-defeat.

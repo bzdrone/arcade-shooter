@@ -6,8 +6,8 @@ const path = require('node:path')
 const { stripTypeScriptTypes } = require('node:module')
 const fixture = require('./tilemap-fixture.cjs')
 const source = stripTypeScriptTypes(fs.readFileSync(path.join(__dirname, '..', 'pathing.ts'), 'utf8'), { mode: 'transform' })
-function setup() {
-    const level = fixture()
+function setup(name) {
+    const level = fixture(name)
     const context = vm.createContext({
         Math: Object.assign(Object.create(Math), { idiv: (a, b) => Math.trunc(a / b) }),
         tiles: level.tiles, game: { currentScene: () => ({ tileMap: level.map }) }
@@ -51,6 +51,31 @@ test('training yard fits one screen and has solid cover with connected floor', (
         if (s.api.walkable(x, y)) assert.ok(s.api.reachable(x, y), `Disconnected floor ${x},${y}`)
     }
 })
+
+test('compound has connected rooms, courtyard, perimeter and three clear spawns per team', () => {
+    const s = setup('combatCompound')
+    assert.deepEqual([s.width, s.height, s.size], [25, 19, 16])
+    s.api.refresh(s.sprite(3, 3), 0, true)
+    for (let y = 0; y < s.height; y++) for (let x = 0; x < s.width; x++) {
+        if (x === 0 || y === 0 || x === s.width - 1 || y === s.height - 1) assert.equal(s.api.walkable(x, y), false)
+        else if (s.api.walkable(x, y)) assert.ok(s.api.reachable(x, y), `Disconnected floor ${x},${y}`)
+    }
+    for (const team of ['blueSpawn', 'redSpawn']) {
+        const spawns = s.tiles.getTilesByType('myTiles.' + team)
+        assert.equal(spawns.length, 3)
+        assert.ok(spawns.every(p => s.api.reachable(p.column, p.row)))
+    }
+    for (const y of [4, 9, 14]) for (const x of [7, 17]) assert.ok(s.api.walkable(x, y), 'Three courtyard approaches per side')
+    assert.equal(s.api.walkable(12, 8), false, 'Courtyard cover is solid')
+})
+
+for (const [from, to] of [[[3, 3], [21, 15]], [[21, 3], [3, 15]], [[5, 9], [19, 9]]]) {
+    test(`compound navigation ${from} to ${to} respects the soldier footprint`, () => {
+        const s = setup('combatCompound'), bot = s.sprite(...from), target = s.sprite(...to)
+        pursue(s, bot, target, 4000)
+        assert.ok(Math.hypot(bot.x - target.x, bot.y - target.y) < 1)
+    })
+}
 
 for (const [name, fromCell, targetCell] of [
     ['left barrier', [1, 3], [4, 3]], ['left barrier reversed', [4, 3], [1, 3]],

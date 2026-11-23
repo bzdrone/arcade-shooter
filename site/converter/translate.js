@@ -1,6 +1,6 @@
 // Arcade `mod` rules -> a Battlefield 6 Portal TypeScript script and strings file.
 //
-// Applies the porting checklist in PORTAL.md as text edits on the learner's own
+// Applies the porting checklist in PORTAL.md as text edits on the creator's own
 // code: registered handlers become functions called from exported Portal events,
 // waits become `await mod.Wait`, message text moves to the strings file, and
 // calls whose Portal behaviour differs go to the bundled runtime (`arcade`).
@@ -432,7 +432,7 @@ export function translateProject(files, runtime, projectName) {
         '        debug: true,        // write runtime notes to PortalLog.txt when hosting locally',
         '    }'
     ].join('\n')
-    const runtimeText = runtime.replace(/ *\/\/@settings-start[\s\S]*\/\/@settings-end\n/, settingsText + '\n')
+    const runtimeText = runtime.replace(/ *\/\/@settings-start[\s\S]*\/\/@settings-end\r?\n/, settingsText + '\n')
 
     out.push(`// ${projectName}: Battlefield 6 Portal script converted from a MakeCode Arcade project.`,
         `// Use it with the map edits in ${projectName}.spatial.json (on ${'MP_Portal_Sand'}) and the`,

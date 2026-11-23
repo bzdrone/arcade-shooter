@@ -1,4 +1,4 @@
-// Worked example: first team to ten, written with the Portal-shaped `mod` layer.
+// First team to ten eliminations wins.
 //% color=#C75050 block="Deathmatch"
 namespace deathmatch {
     /** Select the original first-team-to-ten rules before starting the engine. */

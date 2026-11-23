@@ -1,6 +1,4 @@
-// Portal-shaped scripting layer: a small subset of Battlefield 6 Portal's `mod`
-// names, argument order and event shapes, mapped onto the shooter engine.
-// It is Portal-shaped, not Portal-compatible; PORTAL.md lists the porting fix-ups.
+// Portal scripting blocks for Arcade.
 //% color=#2E5FA8 weight=60 block="Mod"
 //% groups='["Events", "Score", "Teams", "Players", "Variables", "Messages", "Timing"]'
 namespace mod {

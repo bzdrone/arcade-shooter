@@ -205,6 +205,8 @@ namespace shooter {
         owner.respawnAt = game.runtime() + respawnDelay
         if (owner.human) {
             controller.moveSprite(sprite, 0, 0)
+            // Hold the last view while waiting; respawn binds the new body.
+            scene.cameraFollowSprite(null)
             player = null
         }
         sprite.destroy()
@@ -243,7 +245,6 @@ namespace shooter {
             if (owner.human) for (let x = 2; x <= 5; x++) picture.setPixel(x, 0, 1)
             const sprite = sprites.create(picture, soldierKind)
             tiles.placeOnTile(sprite, location)
-            sprite.setStayInScreen(true)
             const soldier = new Soldier(sprite)
             owner.soldier = soldier
             soldier.nextShotAt = now + owner.weapon.interval
@@ -254,6 +255,7 @@ namespace shooter {
                 facingX = 1
                 facingY = 0
                 controller.moveSprite(sprite, 70, 70)
+                scene.cameraFollowSprite(sprite)
             } else {
                 soldier.navigation = new pathing.Bot(sprite, botSpeed)
             }
@@ -273,6 +275,8 @@ namespace shooter {
         const shot = sprites.createProjectileFromSprite(picture, soldier.sprite, dx * weapon.speed, dy * weapon.speed)
         shots.push(new Shot(shot, owner, weapon.damage, weapon))
         shot.setKind(owner.team == 0 ? blueShotKind : redShotKind)
+        // Combat belongs to the map, not the human's current viewport.
+        shot.setFlag(SpriteFlag.AutoDestroy, false)
         shot.setFlag(SpriteFlag.DestroyOnWall, true)
         shot.lifespan = Math.min(2500, Math.max(1, Math.floor(weapon.range * 1000 / weapon.speed)))
         soldier.nextShotAt = now + weapon.interval
@@ -395,7 +399,19 @@ namespace shooter {
         }
         for (let i = 0; i < startedHandlers.length; i++) startedHandlers[i]()
         for (let i = 0; i < players.length; i++) deployed(players[i])
-        scene.createRenderable(100, function (target) {
+        scene.createRenderable(100, function (target, camera) {
+            // Soldier positions are world coordinates; HUD drawing is screen-relative.
+            // Draw bars first so they cannot cover the fixed HUD or mode messages.
+            for (let i = 0; i < players.length; i++) {
+                const soldier = players[i].soldier
+                if (soldier) {
+                    const width = Math.max(1, Math.round(6 * soldier.health / soldierHealth))
+                    const x = soldier.sprite.x - camera.drawOffsetX - 3
+                    const y = soldier.sprite.y - camera.drawOffsetY - 6
+                    target.fillRect(x, y, 6, 1, 15)
+                    target.fillRect(x, y, width, 1, players[i].team == 0 ? 9 : 2)
+                }
+            }
             target.fillRect(0, 0, scene.screenWidth(), 9, 15)
             target.print("BLUE " + teams[0].score + "  RED " + teams[1].score, 2, 1, 1, image.font5)
             target.fillRect(0, 112, scene.screenWidth(), 8, 15)
@@ -408,14 +424,6 @@ namespace shooter {
             }
             target.print(status, 2, 113, 1, image.font5)
             messages.draw(target)
-            for (let i = 0; i < players.length; i++) {
-                const soldier = players[i].soldier
-                if (soldier) {
-                    const width = Math.max(1, Math.round(6 * soldier.health / soldierHealth))
-                    target.fillRect(soldier.sprite.x - 3, soldier.sprite.y - 6, 6, 1, 15)
-                    target.fillRect(soldier.sprite.x - 3, soldier.sprite.y - 6, width, 1, players[i].team == 0 ? 9 : 2)
-                }
-            }
         })
         game.onUpdate(function () {
             if (finished) return

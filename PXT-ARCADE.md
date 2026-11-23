@@ -1,6 +1,6 @@
 # PXT / MakeCode Arcade authoring knowledge
 
-Project-local reference for what we have actually learned. Read this before re-investigating the toolchain, simulator, Blocks, tilemaps, or project PNGs. Keep repeatable commands/checklists in [VALIDATION.md](VALIDATION.md), design and open work in [PLAN.md](PLAN.md), and learner usage in [README.md](README.md).
+Project-local reference for what we have actually learned. Read this before re-investigating the toolchain, simulator, Blocks, tilemaps, or project PNGs. Keep repeatable commands/checklists in [VALIDATION.md](VALIDATION.md), design and open work in [PLAN.md](PLAN.md), and creator usage in [README.md](README.md).
 
 These are observations from the versions below, not promises about all MakeCode targets or future releases. Prefer the committed tests and matching upstream sources over undocumented assumptions.
 
@@ -10,7 +10,7 @@ All checkouts are sibling directories next to this repository (tests reference t
 
 | Directory | Purpose / known revision |
 | --- | --- |
-| `arcade-shooter` | Game and author-side tests; not the toolchain or learner interface |
+| `arcade-shooter` | Game and author-side tests; not the toolchain or creator interface |
 | `pxt-arcade` | Installed target; Arcade **4.2.1**, checkout `0642e6159d3fdb652fb1465a0aff73c5b8188578` |
 | `pxt` | Read-only reference checkout at **v13.2.13** |
 | `pxt-common-packages` | Read-only reference checkout at **v14.2.1** |
@@ -96,13 +96,21 @@ Match source tags to installed dependencies when reasoning about behavior. Refer
 - Use Arcade's built-in tilemap editor and wall flags for rendering, collision, and navigation. No custom level editor, separate nav layout, or navigation extension is required for this map.
 - Artwork and walls are independent. Painting a cover-looking tile is not enough: the cell must have its wall marking. Conversely a spawn-looking tile can be mistakenly marked as a wall.
 - Include BOTH `tilemap.g.ts` and `tilemap.g.jres` in the manifest/export. The declarations alone do not contain the map/artwork data.
-- `tools/build-level.cjs` calls the sibling toolchain's asset serializer to generate matching resources/declarations. **It overwrites editor-made asset changes.** Use it only when intentionally regenerating the baseline.
+- `tools/build-level.cjs` calls the sibling toolchain's asset serializer to generate matching resources/declarations. **It overwrites all asset changes, including added maps.** Use it only when intentionally regenerating the original yard. `tools/add-compound.cjs` uses the same serializer to add the separate 25×19 `combatCompound`; it preserves existing resource values and refuses to overwrite an existing compound.
 
 ### The tile-size trap we already resolved
 
 - An initial **8-pixel** map compiled and ran, but opening the tilemap editor crashed with `TypeError: Cannot read properties of undefined (reading 'id')` in the palette path, associated with empty gallery categories.
 - Switching to standard **16-pixel** tiles fixed the local AND hosted tilemap-editor checks. Do not change back just because an 8-pixel map works in the simulator; asset editing must be tested too.
-- Current yard: **10×7**, 16-pixel cells = **160×112**. Arcade screen is 160×120; eight pixels remain below the map. No scrolling. Perimeter and two staggered barriers are solid.
+- Default yard: **10×7**, 16-pixel cells = **160×112**. Arcade screen is 160×120; eight pixels remain below this map. Perimeter and two staggered barriers are solid. Larger maps scroll with the human; the real-simulator `--scrolling` variant uses 30×20.
+
+### Scrolling worlds
+
+- `scene.cameraFollowSprite(sprite)` follows the human and clamps to tilemap bounds. Call it for each new human body, not just initial startup. Passing `null` detaches without resetting the offset, holding the last view during respawn (see common-packages `scenes.ts` / `camera.ts`).
+- Do not set `StayInScreen` on soldiers: physics constrains that flag to the **camera region**, pinning off-screen bots and preventing movement across larger maps. A solid tilemap perimeter supplies world bounds.
+- `createProjectileFromSprite` enables `AutoDestroy` by default, which destroys off-screen projectiles. Turn it off for map-wide combat; keep `DestroyOnWall` and range/lifespan cleanup so off-screen shots cannot accumulate indefinitely.
+- `scene.createRenderable` receives `(target, camera)`. Subtract `camera.drawOffsetX/Y` from world positions for soldier bars; these offsets also reflect camera shake. Draw bars before the fixed HUD/messages so they cannot overwrite it. Do not subtract camera offsets from HUD coordinates.
+- Disposable map variants must update **both** `.jres` data and the `tiles.createTilemap` factory in `tilemap.g.ts`; changing just `.jres` can leave the simulator using the old layout. Use `preferredEditor: tsprj` for a test-only TypeScript variant so the baseline cached Blocks cannot override it.
 
 ### Navigation design and limits
 
@@ -160,10 +168,10 @@ The working patterns are in `tests/editor-smoke.cjs` and `tests/png-hosted.cjs`;
 
 ## 8. Project PNGs: export the real project, validate exact bytes
 
-- A learner deliverable is an **embedded-source MakeCode project PNG**, not a screenshot. Markdown lessons are not automatically embedded.
+- A creator deliverable is an **embedded-source MakeCode project PNG**, not a screenshot. Markdown lessons are not automatically embedded.
 - In the tested Arcade target, `pxt.appTarget.compile.saveAsPNG` is true. Its simulator camera button is misleadingly labelled **"Take Screenshot"**, but calls the official project-PNG path (`downloadScreenshotAsync` → `saveProjectAsPNGAsync`). Assert this target setting before relying on the camera.
 - Use the actual editor download. Do not replace it with a screenshot plus separately zipped sources, or an invented PNG encoder.
-- The existing exporter decodes with `pxt.Util.decodeBlobAsync`, handles JSON versus LZMA payloads, parses the outer project container and its `.source`, and compares **every manifest-listed source/asset file** with the baseline. Blocks-first loading regenerates some files: comparison ignores standalone comments in `main.ts`, XML layout coordinates/empty variables/editor data in `main.blocks`, and JSON formatting in `.jres`; the generated tile lookup may use unqualified names inside `myTiles`. Executable main text, block structure/fields, resource values, and other implementation files must still match.
+- The existing exporter decodes with `pxt.Util.decodeBlobAsync`, handles JSON versus LZMA payloads, parses the outer project container and its `.source`, and compares **every manifest-listed source/asset file** with the baseline. Blocks-first loading regenerates some files: comparison ignores standalone comments in `main.ts`, XML layout coordinates/empty variables/editor data in `main.blocks`, and JSON formatting in `.jres`; the generated tile lookup may use unqualified names inside `myTiles`. With multiple maps, the editor may reorder tilemap factory cases and JSON resource keys; normalize order only, retaining every case and resource value. Executable main text, block structure/fields, resource values, and other implementation files must still match.
 - Export before switching to JavaScript: switching editors can change `preferredEditor`. Assert `blocksprj` in the embedded manifest, then verify a visible Blocks workspace on fresh local and hosted imports **before** any tab-switch command. A cached Monaco model does not prove that a JavaScript tab transition has finished; wait for its visible editor before switching back.
 - Export the baseline BEFORE automation changes any settings. Otherwise the artifact can accidentally contain a test variant.
 - Copy the downloaded original bytes to `local/exports/arcade-shooter.png`; record SHA-256 and byte count. Re-exporting may change pixels and bytes, so validate the exact file intended for delivery.

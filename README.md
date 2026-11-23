@@ -2,13 +2,13 @@
 
 A development repository for a MakeCode Arcade learning project: a gentle on-ramp to scripting game modes in Battlefield 6 Portal.
 
-**Start here:** read the [learner introduction](INTRO.md). New to MakeCode Arcade? Work through a few beginner tutorials on [its home page](https://arcade.makecode.com/) first. Then download `arcade-shooter.png` from the newest version on the [Releases page](https://github.com/bzdrone/arcade-shooter/releases) and follow the introduction to play and change one number. You don't need to clone this repository. The handouts here may be newer than those attached to a published release.
+**Start here:** read the [creator introduction](INTRO.md). New to MakeCode Arcade? Work through a few beginner tutorials on [its home page](https://arcade.makecode.com/) first. Then download `arcade-shooter.png` from the newest version on the [Releases page](https://github.com/bzdrone/arcade-shooter/releases) and follow the introduction to play and change one number. You don't need to clone this repository. The handouts here may be newer than those attached to a published release.
 
 ## Audience and artifact
 
-This repository is for authors developing the game and learning experience. Learners are not expected to clone it, use Git, or assemble its source files.
+This repository is for authors developing the game and learning experience. Creators are not expected to clone it, use Git, or assemble its source files.
 
-The learner-facing game artifact is a **MakeCode Arcade project PNG**: an image containing embedded project data that can be imported into the Arcade editor. It is not a screenshot. Learners import the PNG to play, inspect, and modify the game. Supply the short [learner introduction](INTRO.md) alongside it for import instructions, controls, and a first experiment.
+The creator-facing game artifact is a **MakeCode Arcade project PNG**: an image containing embedded project data that can be imported into the Arcade editor. It is not a screenshot. Creators import the PNG to play, inspect, and modify the game. Supply the short [creator introduction](INTRO.md) alongside it for import instructions, controls, and a first experiment.
 
 The implementation is primarily TypeScript, with a small Blocks-friendly customization surface. The PNG must carry the project files needed for that surface and its implementation, without relying on access to this repository.
 
@@ -22,13 +22,36 @@ The example is a **two-versus-two top-down soldier match**: you and one blue bot
 - Each elimination earns the shooter's team one point. The **first team to 10** wins. The HUD shows both scores and your health/respawn status; the result screen names the winning team. Press a button there to restart.
 - An eliminated soldier—including you—waits **five seconds**, then returns with full health at a clear spawn tile for its own team. If all its team's points are occupied, it waits rather than spawning on someone. There are always four soldier slots, never a growing swarm.
 
-The learner path starts with a few MakeCode Arcade beginner tutorials, then a short play session and one damage change in the existing Blocks workspace. Activity 1 stays in Blocks and introduces the other weapon settings one at a time; writing game-mode rules is a later activity, not part of the first session. Learning activities use a predict → change → test → explain loop. Weapon settings apply to **both teams**, exposing damage, fire interval, and projectile speed. Soldier settings expose shared health, bot speed, and respawn delay.
+The creator path starts with a few MakeCode Arcade beginner tutorials, then a short play session and one damage change in the existing Blocks workspace. Activity 1 stays in Blocks and introduces the other weapon settings one at a time; writing game-mode rules is a later activity, not part of the first session. Learning activities use a predict → change → test → explain loop. Weapon settings apply to **both teams**, exposing damage, fire interval, and projectile speed. Soldier settings expose shared health, bot speed, and respawn delay.
 
-These are transferable shooter concepts, not a universal FPS modding API. The game is a local simulation with no networking or external assets; it does not implement first-person rendering or client/server authority.
+This project is specifically for learning and authoring Battlefield 6 Portal maps and game modes. Arcade provides a local, top-down starting environment; the converter turns supported maps and rules into Portal files. The Arcade simulation has no networking or external assets and does not implement first-person rendering or client/server authority.
 
-## Training yard and navigation
+## Maps and navigation
 
-The level is a single-screen **10×7 tile training yard**, using standard 16-pixel tiles. A solid perimeter surrounds two staggered cover barriers, with a central lane and routes above, below, and around the sides. The lower eight screen pixels are outside the 112-pixel-high map; there is no camera scrolling.
+Map choice is independent of mode: **deathmatch**, **gun game**, and **no mode** can all use either sample map or your own edited map.
+
+| Map | Size | Layout |
+| --- | --- | --- |
+| `trainingYard` (default) | 10×7 | Original compact yard, unchanged |
+| `combatCompound` | 25×19 | Close-combat rooms, doorways, courtyard cover, and flanking routes |
+
+To try the compound, change the tilemap selection in `main.ts`, before the settings and startup calls:
+
+```typescript
+tiles.setCurrentTilemap(tilemap`combatCompound`)
+```
+
+Use `trainingYard` instead of `combatCompound` to switch back. The selected map survives switching between JavaScript and Blocks; edit its thumbnail in **set tilemap to** to customize it. Choosing a different shooter mode does not change the map.
+
+### Combat compound
+
+The compound is **400×304 pixels**, with camera scrolling. Two room wings face a central courtyard. Each wing has three courtyard entrances, internal dividing walls with doorways, and an outside route connecting its rooms. The courtyard has staggered cover clusters that break up firing lanes; the north and south passages give alternatives to the direct middle crossing. Three spawn points per team are spread through that team's wing, so respawns can use a clear alternative.
+
+This is a close-combat FPS-style layout represented from above, using the same wall and cover artwork as the yard. It has no elevation or destructible cover. In Portal it converts to a 100×76 m footprint. The larger space increases travel time with the baseline slow bots; it is a sample for exploring and editing, not a claim of tuned match balance.
+
+### Original training yard
+
+The default level is a **10×7 tile training yard**, using standard 16-pixel tiles. A solid perimeter surrounds two staggered cover barriers, with a central lane and routes above, below, and around the sides. It fits on one screen; larger tilemaps scroll automatically as the camera follows your soldier, clamped to the map edges. While you wait to respawn, the view stays where you died; on respawn it follows your new soldier. Scores, health/respawn status, and messages stay fixed on screen, while health bars follow soldiers. Bots and bullets remain active outside your view; bullets expire at their weapon range or on hitting a wall or opponent.
 
 ```text
 ##########
@@ -42,7 +65,7 @@ The level is a single-screen **10×7 tile training yard**, using standard 16-pix
 
 `#` is the perimeter, `C` is solid cover, `.` is floor, and `B`/`R` are blue/red spawn tiles. These are tile identities, not just decorative colors. The human starts at the upper blue point and the friendly bot at the lower one; red soldiers start at the two red points. Respawns rotate through available points for that team. Cover is indestructible.
 
-In **Blocks**, click the thumbnail in **set tilemap to** to open Arcade's level editor. Use **My Tiles** for this project's floor/wall/cover artwork, and the **wall tool** to mark cells blocked or passable. Changing artwork alone does not change collision. Keep the 10×7 dimensions, 16-pixel tile size, a solid outer border, and connected floor for this initial layout. Use the existing **blueSpawn** and **redSpawn** tiles to move/add team entry points. Keep at least **two walkable spawn tiles per team**, connected by floor to all other spawn tiles; startup reports invalid layouts. Stop/start the simulator after editing.
+In **Blocks**, click the thumbnail in **set tilemap to** to open Arcade's level editor. Use **My Tiles** for this project's floor/wall/cover artwork, and the **wall tool** to mark cells blocked or passable. Changing artwork alone does not change collision. Use the level editor's size controls to enlarge the map; keep the standard 16-pixel tile size, a solid outer border, and connected floor. The perimeter walls—not the visible screen edge—contain soldiers. A 30×20 map is covered by the scrolling simulator check; very large maps need separate performance testing (navigation work grows with tile count). For Portal conversion, stay within 50×50 tiles. Use the existing **blueSpawn** and **redSpawn** tiles to move/add team entry points. Keep at least **two walkable spawn tiles per team**, connected by floor to all other spawn tiles; startup reports invalid layouts. Stop/start the simulator after editing.
 
 `pathing.ts` reads those same wall markings. Each target soldier owns an independent reverse breadth-first distance field, refreshed at most every 250 ms and shared by bots pursuing it. Bots select an opposing soldier by shortest reachable tile route, then follow cardinal tile-center waypoints, finishing a step before turning so they do not cut cover corners. If a route is unavailable, they stop and retry. They shoot instead of advancing when aligned and unobstructed. This is basic pursuit and shooting, not tactical cover-seeking; the module is intended for small maps and sprites no larger than 8×8 pixels.
 
@@ -65,25 +88,25 @@ Use https://arcade.makecode.com/ with the Arcade target. To assemble the source 
 3. Keep main.blocks as the Blocks companion; without it Arcade treats the project as TypeScript-only.
 4. Run the simulator and check the Blocks customization surface and tilemap editor.
 
-Prefer importing the tested project PNG for playtesting. `tools/build-level.cjs` can regenerate the initial map using the sibling toolchain's asset serializer, but **overwrites editor-made level changes**; it is an authoring helper, not a learner requirement.
+Prefer importing the tested project PNG for playtesting. `tools/build-level.cjs` regenerates the original training-yard assets and **overwrites all editor-made asset changes and added maps**. `tools/add-compound.cjs` adds the sample compound to a project that does not already contain it, preserving existing maps and artwork; it refuses to overwrite an existing compound. Both use the sibling toolchain's asset serializer and are authoring helpers, not creator requirements.
 
-MakeCode's GitHub import is another authoring option for a hosted repository containing the Arcade pxt.json project. It is not the learner delivery mechanism.
+MakeCode's GitHub import is another authoring option for a hosted repository containing the Arcade pxt.json project. It is not the creator delivery mechanism.
 
 Export the project using Arcade's project-PNG save/export facility. Import that exported PNG into a fresh editor project and validate it before distribution. Distribute the original file without image conversion or optimization that could damage its embedded project data.
 
 ## Source layout
 
-- main.ts: learner-facing settings and startup calls inside the exported project.
+- main.ts: creator-facing settings and startup calls inside the exported project.
 - main.blocks: Blocks companion with the baseline settings; keep its values aligned with main.ts when editing source outside Arcade.
 - shooter.ts: combat engine, persistent players, per-life soldiers, weapons, respawns, bots, and annotated settings/start Blocks API.
-- mod.ts: the Portal-shaped scripting layer (Mod Blocks category): events, score, teams, variables, messages and wait under Battlefield 6 Portal's names.
+- mod.ts: the Portal learning API (Mod Blocks category): events, score, teams, variables, messages and wait under Battlefield 6 Portal's names.
 - deathmatch.ts: first-team-to-ten rules, written with `mod` as a worked example.
 - gungame.ts: individual weapon ladders (pistol → SMG → shotgun → knife), written with `mod`; the player who finishes wins for their team.
 - weapons.ts: weapon compatibility library (Weapons Blocks category): four named categories, not a real inventory simulation.
 - messages.ts: non-blocking notification/announcement queues and single-screen audience filtering.
 - pathing.ts: per-target tilemap distance fields, cardinal shot visibility, and per-bot waypoint movement.
 - tilemap.g.ts / tilemap.g.jres: generated tilemap declarations, tile artwork, and wall markings; editable through Arcade's asset editor.
-- tools/build-level.cjs: author-only initial-map generator (overwrites the asset files).
+- tools/build-level.cjs / tools/add-compound.cjs: author-only yard regeneration and additive compound generator.
 - site/: the Arcade to Portal converter, a static web page (see below). `site/converter/` holds the conversion code, shared with `tools/convert-portal.mjs`; `portal-runtime.ts` is the Portal-side runtime included in every converted script; `sand-heights.js` is generated by `tools/sand-heights.gd`.
 - portal/ and tools/check-portal.cjs: the hand-written Portal port of gun game that the converter's output is modelled on, and a type check of Portal scripts against a local Portal SDK. Not part of the PNG.
 - tests/portal-convert.test.mjs / tests/portal-runtime.test.mjs / tests/portal-site.cjs: converter host tests, the converted script run against a simulated Portal, and a browser check of the converter page.
@@ -91,9 +114,9 @@ Export the project using Arcade's project-PNG save/export facility. Import that 
 - tests/gameplay.test.cjs / tests/pathing.test.cjs: dependency-free host-side logic and route checks; run with `node --test tests/gameplay.test.cjs tests/pathing.test.cjs` on Node.js 22.13+. These mocks do not replace Arcade compilation or simulator checks.
 - tests/editor-smoke.cjs / tests/team-simulator.cjs: real-editor browser checks, controlled 2v2 combat/respawn/endgame checks, and optional project-PNG export/import using the sibling toolchain; see VALIDATION.md for setup and limitations.
 - tests/png-hosted.cjs: imports an existing project PNG into a fresh hosted Arcade browser profile and checks simulator startup and Blocks.
-- lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as learner instructions in a project PNG.
+- lessons/: learning-activity drafts for authors; these Markdown files are not automatically included as creator instructions in a project PNG.
 - [PXT / Arcade authoring knowledge](PXT-ARCADE.md): toolchain/source map, compiler restrictions, Blocks, tilemap, simulator automation, and PNG pitfalls already investigated.
-- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Portal-shaped `mod` layer.
+- [Battlefield 6 Portal reference](PORTAL.md): author notes on the Portal SDK and the Arcade `mod` learning API.
 - [Validation checklist](VALIDATION.md): gameplay, Blocks, and artifact checks.
 - [Release preparation](RELEASING.md): stage just the validated PNG and introduction for download, with supporting records kept separately, without publishing.
 - [Design and open work](PLAN.md): architecture, design decisions, releases and what is not yet verified.
@@ -106,15 +129,15 @@ For TypeScript mode authors, `shooter.createWeapon(damage, interval, speed)` mak
 
 Match state belongs to the engine: `getScore`/`setScore` accept a `Team | Player`; `getTargetScore`/`setTargetScore` control the target. Deathmatch increments only team scores and supplies the ten-point rule. `shooter.endMatch(teamOrPlayer)` accepts either value; a player winner wins for their team. `teamById(0/1)` and `getTeam(player)` return team values. `allPlayers()` returns a copy of the roster; `isHuman`, `isAlive`, `getEliminations`, and `getDeaths` provide player queries. `onDeployed` fires once per successful spawn, including initial deployment after map validation. Register events before startup.
 
-`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Learners script rules through the `mod` layer below rather than these engine calls.
+`getVariable(player, index)` / `setVariable(player, index, value)` provide 32 numeric slots (0–31) per player, initially zero, surviving respawn. The HUD owns team scores, target, health/respawn status, and the human's nonzero personal score. Deathmatch's HUD remains unchanged. Creators script rules through the `mod` layer below rather than these engine calls.
 
 For mode messages, `messages.text("{} reached level {}", player, level)` substitutes up to three placeholders (strings, numbers, or players by display name). Send it using `messages.notify(text, target?)` or `messages.announce(text, target?)`. Omitted target means everyone; a player/team target uses the same union types as match state. On this single screen, only everyone/human/blue-team messages are shown. Notifications last 1.8 seconds, announcements 2.4 seconds, with separate queues capped at eight entries each. They never pause play; overflow removes the oldest waiting entry, preserving the current message.
 
-`createWeapon` also accepts optional range (pixels), projectile color (0 = team color, 1–15 = palette), and display name. Range is capped at speed × 2.5 seconds; wall/off-screen cleanup still applies. `weapons.create(weapons.Kind.Pistol/SMG/Shotgun/Knife)` returns a fresh preset. Pistol matches baseline; SMG fires faster at medium range, shotgun fires one heavy short-range shot (no spread), and knife is a very short-range shot using existing combat rules. Bots keep approaching until their current weapon can reach the target. There is no sniper or separate rifle preset.
+`createWeapon` also accepts optional range (pixels), projectile color (0 = team color, 1–15 = palette), and display name. Range is capped at speed × 2.5 seconds; wall cleanup still applies, but moving off screen does not destroy a shot. `weapons.create(weapons.Kind.Pistol/SMG/Shotgun/Knife)` returns a fresh preset. Pistol matches baseline; SMG fires faster at medium range, shotgun fires one heavy short-range shot (no spread), and knife is a very short-range shot using existing combat rules. Bots keep approaching until their current weapon can reach the target. There is no sniper or separate rifle preset.
 
-## Portal-shaped mod layer
+## Portal scripting in Arcade
 
-The **Mod** and **Weapons** Blocks categories are the learner scripting surface: event handlers, functions and per-player variables, using Battlefield 6 Portal's names so the ideas transfer. Choose **no mode** to write rules from scratch; [lesson 2](lessons/02-mod-rules.md) walks through it. `deathmatch.ts` and `gungame.ts` are complete modes written the same way.
+The **Mod** and **Weapons** Blocks categories are the creator scripting surface: event handlers, functions and per-player variables, using Battlefield 6 Portal's names so the ideas transfer. Choose **no mode** to write rules from scratch; [lesson 2](lessons/02-mod-rules.md) walks through it. `deathmatch.ts` and `gungame.ts` are complete modes written the same way.
 
 - Events: `mod.OnGameModeStarted`, `OnPlayerDeployed(eventPlayer)`, `OnPlayerDied(eventPlayer, eventOtherPlayer)` (eventPlayer died) and `OnPlayerEarnedKill(eventPlayer, eventOtherPlayer, eventWeapon)` (eventPlayer eliminated eventOtherPlayer; `eventWeapon` is a weapon category or -1). Self-inflicted eliminations pass the same player twice. Start and first deployments arrive on the first frame, so event blocks may be placed anywhere.
 - Actions: `SetGameModeScore` / `GetGameModeScore` (team or player), `SetGameModeTargetScore`, `GetTargetScore`, `EndGameMode` (team or player; a player wins for their team), `GetTeam` (a player, or **1** = blue / **2** = red as in Portal), `Equals`, `AllPlayers`, `GetPlayerKills`, `GetPlayerDeaths`, `DealDamage`.
@@ -125,7 +148,7 @@ The **Mod** and **Weapons** Blocks categories are the learner scripting surface:
 
 Hover over a custom block in Arcade to read its help. Shooter, Mod, and Weapons blocks explain their purpose, with input descriptions in the source JSDoc. Mod descriptions are adapted from the Portal SDK and call out Arcade-specific behavior; the help travels inside the project PNG, with no extra download.
 
-The layer is Portal-shaped, not Portal-compatible: Arcade code does not run in Portal unchanged. The converter below translates it.
+The converter below translates Arcade event registration, messages, weapons, and other supported rules into Portal scripts. Concrete API and runtime differences are documented in [PORTAL.md](PORTAL.md).
 
 ## Play your project in Portal (experimental)
 

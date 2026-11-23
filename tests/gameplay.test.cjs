@@ -20,18 +20,19 @@ const messages = fs.readFileSync(path.join(root, 'messages.ts'), 'utf8').replace
 const read = name => fs.readFileSync(path.join(root, name), 'utf8')
 const source = stripTypeScriptTypes([read('pathing.ts'), shooter, messages, read('weapons.ts'), read('mod.ts'), mode, read('gungame.ts')].join('\n'), { mode: 'transform' })
 
-function createGame(modifyLevel) {
-    const level = require('./tilemap-fixture.cjs')()
+function createGame(modifyLevel, mapName = 'trainingYard') {
+    const level = require('./tilemap-fixture.cjs')(mapName)
     if (modifyLevel) modifyLevel(level)
     let now = 0, nextKind = 10, nextId = 0, result, message
     const all = [], updates = [], overlaps = [], destroyed = [], pending = [], renders = []
+    const camera = { sprite: null, drawOffsetX: 0, drawOffsetY: 0 }
     const A = { pressed: false, isPressed() { return this.pressed } }
     const kinds = { Projectile: 1, create: () => nextKind++ }
     function makeSprite(kind) {
         const sprite = { id: nextId++, x: 0, y: 0, vx: 0, vy: 0, dead: false, collisionKind: kind,
             kind: () => kind, setKind: value => { if (kind === kinds.Projectile) sprite.collisionKind = value; kind = value },
             setPosition(x, y) { this.x = x; this.y = y },
-            setStayInScreen() {}, setFlag(flag, value) { this.flags = { ...this.flags, [flag]: value } },
+            setStayInScreen(value) { this.stayInScreen = value }, setFlag(flag, value) { this.flags = { ...this.flags, [flag]: value } },
             destroy() { if (this.dead) return; this.dead = true; pending.push({ kind, sprite: this }) }
         }
         all.push(sprite)
@@ -41,8 +42,9 @@ function createGame(modifyLevel) {
         Math: Object.assign(Object.create(Math), { idiv: (a, b) => Math.trunc(a / b) }),
         pause() {}, img: () => ({ colors: [], replace(from, to) { this.colors.push([from, to]) }, setPixel() {} }), image: { font5: {} },
         tilemap: () => level.map, myTiles: { blueSpawn: 'myTiles.blueSpawn', redSpawn: 'myTiles.redSpawn' },
-        tiles: level.tiles, SpriteKind: kinds, SpriteFlag: { DestroyOnWall: 1 },
+        tiles: level.tiles, SpriteKind: kinds, SpriteFlag: { DestroyOnWall: 1, AutoDestroy: 2 },
         scene: { setBackgroundColor() {}, screenWidth: () => 160, screenHeight: () => 120,
+            cameraFollowSprite(sprite) { camera.sprite = sprite },
             createRenderable: (_, render) => renders.push(render) },
         controller: { A, moveSprite(sprite, x, y) { sprite.control = [x, y] } },
         game: { ScoringType: { None: 0 }, setGameOverScoringType() {}, setGameOverMessage() {},
@@ -70,7 +72,7 @@ function createGame(modifyLevel) {
                 ? (p.soldier?.[key] ?? (key === 'health' ? 0 : null)) : p[key] }
         })) }
     }
-    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, mod: context.mod, A, all, level,
+    return { api: context.shooter, mode: context.deathmatch, messages: context.messages, weapons: context.weapons, mod: context.mod, A, all, level, camera,
         state,
         tick(time) { now = time; updates.forEach(handler => handler()) },
         runMain() { vm.runInContext(fs.readFileSync(path.join(root, 'main.ts'), 'utf8'), context) },
@@ -85,7 +87,12 @@ function createGame(modifyLevel) {
         flush() {
             while (pending.length) { const event = pending.shift(); destroyed.filter(h => h.kind === event.kind).forEach(h => h.handler(event.sprite)) }
         },
-        hud() { const lines = []; renders.forEach(render => render({ fillRect() {}, print: text => lines.push(text) })); return lines },
+        draw() {
+            const lines = [], rectangles = []
+            renders.forEach(render => render({ fillRect: (...args) => rectangles.push(args), print: text => lines.push(text) }, camera))
+            return { lines, rectangles }
+        },
+        hud() { return this.draw().lines },
         get result() { return result }, get message() { return message }
     }
 }
@@ -111,6 +118,44 @@ test('actual entry point starts exactly two soldiers per team, once', () => {
     assert.equal(g.all.length, 4)
 })
 
+test('camera follows only the human, detaches on death and rebinds on respawn', () => {
+    const g = createGame(); g.runMain()
+    const original = g.state().player
+    assert.equal(g.camera.sprite, original)
+    assert.ok(g.all.every(s => !s.stayInScreen), 'Bots and human are not viewport-confined')
+    g.camera.drawOffsetX = 160; g.camera.drawOffsetY = 120
+    defeat(g, 0, 1)
+    assert.equal(g.camera.sprite, null)
+    assert.deepEqual([g.camera.drawOffsetX, g.camera.drawOffsetY], [160, 120])
+    g.tick(5000)
+    assert.notEqual(g.state().player, original)
+    assert.equal(g.camera.sprite, g.state().player)
+})
+
+test('health bars subtract camera offsets while HUD stays fixed and draws on top', () => {
+    const g = createGame(); g.runMain()
+    g.state().player.setPosition(240, 180)
+    g.camera.drawOffsetX = 160; g.camera.drawOffsetY = 120
+    const { rectangles, lines } = g.draw()
+    assert.deepEqual(rectangles[0], [77, 54, 6, 1, 15])
+    assert.deepEqual(rectangles[1], [77, 54, 6, 1, 9])
+    assert.deepEqual(rectangles.slice(-2), [[0, 0, 160, 9, 15], [0, 112, 160, 8, 15]])
+    assert.match(lines[0], /BLUE 0  RED 0/)
+})
+
+for (const map of ['trainingYard', 'combatCompound']) for (const mode of ['Deathmatch', 'GunGame', 'None']) {
+    test(`${mode} starts independently on ${map}`, () => {
+        const g = createGame(null, map)
+        g.api.setMode(g.api.Mode[mode]); g.api.startGame(); g.tick(0)
+        assert.equal(g.result, undefined)
+        assert.equal(g.message, undefined)
+        assert.equal(g.state().players.length, 4)
+        assert.ok(g.state().players.every(p => p.soldier))
+        assert.equal(g.camera.sprite, g.state().player)
+        assert.equal(g.api.getTargetScore(), mode === 'Deathmatch' ? 10 : mode === 'GunGame' ? 4 : 0)
+    })
+}
+
 test('manifest packages implementation, pathing, Blocks and level assets', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'pxt.json'), 'utf8'))
     for (const name of ['main.ts','main.blocks','shooter.ts','messages.ts','weapons.ts','mod.ts','deathmatch.ts','gungame.ts','pathing.ts','tilemap.g.ts','tilemap.g.jres']) {
@@ -129,6 +174,7 @@ test('human held/released fire uses the shared cooldown and retained aim', () =>
     assert.equal(shot.kind(), g.state().blueShotKind)
     assert.deepEqual([shot.vx, shot.vy], [0, -80])
     assert.equal(shot.flags[1], true)
+    assert.equal(shot.flags[2], false, 'Off-screen shots survive until wall impact or range expiry')
     human.sprite.vy = 0
     g.tick(1499); assert.equal(g.all.length, 5)
     g.tick(1500); assert.equal(g.all.length, 6)
@@ -537,10 +583,10 @@ test('mod messages fill placeholders and keep single-screen audience filtering',
     assert.deepEqual(Array.from(q.announcements, e => e.text), ['RED 1 ROUND'])
 })
 
-test('learner rules written with mod run with no built-in mode', () => {
+test('creator rules written with mod run with no built-in mode', () => {
     const g = createGame(), m = () => g.mod
     g.api.setMode(g.api.Mode.None)
-    // The deathmatch rule in learner form, registered before startup as main.ts would.
+    // The deathmatch rule in creator form, registered before startup as main.ts would.
     g.mod.OnGameModeStarted(() => m().SetGameModeTargetScore(2))
     g.mod.OnPlayerEarnedKill((player, otherPlayer) => {
         if (m().Equals(m().GetTeam(player), m().GetTeam(otherPlayer))) return

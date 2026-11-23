@@ -139,7 +139,7 @@ async function checkModes(ctx) {
     assert.equal(await ctx.editor.evaluate(() => pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false).some(b => b.type === 'deathmatch_configure')), true)
     console.log('PASS: three-way mode enum round-trips, no-mode runtime and legacy deathmatch block retained')
 }
-// A learner-style program using only Mod/Weapons blocks, with no built-in mode.
+// A creator-style program using only Mod/Weapons blocks, with no built-in mode.
 // It is appended AFTER startGame(), so it also proves registration order does not matter.
 const learnerRules = `
 mod.OnGameModeStarted(function () {
@@ -198,7 +198,7 @@ async function checkMod(ctx) {
     }, { timeout: 4000 })
     await ctx.sim.waitForFunction(() => team.slots()[2].sprite && team.get('players').data[2].fields.variables.data[0] === 2, { timeout: 8000 })
 
-    // Learner program round trip: TS -> Blocks (edit) -> TS -> compile -> run.
+    // Creator program round trip: TS -> Blocks (edit) -> TS -> compile -> run.
     await ctx.command('switchblocks'); await ctx.sleep(1800)
     const blocks = await ctx.editor.evaluate(() => {
         const all = pxt.blocks.requireBlockly().common.getMainWorkspace().getAllBlocks(false)
@@ -224,6 +224,6 @@ async function checkMod(ctx) {
     ctx.sim = await ctx.page.waitForFrame(f => f.url().includes('---simulator'))
     await teamSimulator.install(ctx.sim)
     await ctx.sim.waitForFunction(() => team.get('targetScore') === 2, { timeout: 5000 })
-    console.log('PASS: learner mod rules (no mode) run, wait without blocking, and round-trip through Mod/Weapons Blocks with no grey blocks')
+    console.log('PASS: creator mod rules (no mode) run, wait without blocking, and round-trip through Mod/Weapons Blocks with no grey blocks')
 }
 module.exports = { variant, checkMessages, checkWeapons, checkModes, checkMod, learnerRules }

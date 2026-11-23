@@ -1,4 +1,4 @@
-// Start by modifying these settings. Keep the game implementation in shooter.ts.
+// Start by modifying these settings.
 // Click the tilemap to edit cover, walls, and the blue/red soldier spawn tiles.
 tiles.setCurrentTilemap(tilemap`trainingYard`)
 // Weapon: damage per hit, minimum milliseconds between shots, projectile speed.

@@ -1,8 +1,8 @@
 # Battlefield 6 Portal reference (author notes)
 
-Author-facing notes for designing this project's Portal-shaped `mod` layer. Learners do not need this file. Design decisions live in [PLAN.md](PLAN.md); PXT language findings live in [PXT-ARCADE.md](PXT-ARCADE.md).
+Author-facing notes for this Battlefield 6 Portal-specific project and its Arcade `mod` learning API. Creators do not need this file. Design decisions live in [PLAN.md](PLAN.md); PXT language findings live in [PXT-ARCADE.md](PXT-ARCADE.md).
 
-The `mod` layer is **Portal-shaped, not Portal-compatible**. Arcade is a short ramp: learners get the idea of scripting a game mode with event handlers, functions and per-player variables, then move to Portal. Porting a mode needs a short list of fix-ups (below); the Arcade to Portal converter (`site/`, see the end of this file) applies them automatically and also turns the tilemap into Portal map edits.
+Arcade is the starting environment for learning and authoring Battlefield 6 Portal maps and game modes. Creators script with event handlers, functions and per-player variables, then use the Arcade to Portal converter (`site/`, see the end of this file) to produce Portal rules and map edits. The conversion handles the supported API differences listed below; Arcade source is not uploaded directly as a Portal script.
 
 ## Sources and versions
 
@@ -53,7 +53,7 @@ Portal's full UI is widget-based (`AddUIText` with position, size, anchor, colou
 
 ## The Arcade `mod` layer
 
-`mod.ts` implements this subset under Portal's names. Learners see it as the **Mod** Blocks category; `deathmatch.ts` and `gungame.ts` are written with it as worked examples.
+`mod.ts` implements this subset under Portal's names. Creators see it as the **Mod** Blocks category; `deathmatch.ts` and `gungame.ts` are written with it as worked examples.
 
 | Arcade | Notes |
 |---|---|
@@ -70,7 +70,7 @@ Weapons use the compatibility library in `weapons.ts`: `weapons.give(player, wea
 
 The JSDoc above exported blocks in `mod.ts` supplies the editor's hover tooltips; `@param` entries describe inputs for MakeCode's API metadata. Descriptions are paraphrased from the SDK 2.1.2.0 comments in `code/types/mod/index.d.ts` (including `EventHandlerSignatures`) and checked against this implementation. They are not an imported copy of the full SDK documentation. Shooter settings and Weapons presets are Arcade-specific, so their help comes from the implementation, not an SDK equivalent.
 
-Keep the first sentence about what the learner can do; include Arcade limits where Portal's wording would mislead. In particular:
+Keep the first sentence about what the creator can do; include Arcade limits where Portal's wording would mislead. In particular:
 
 - Setting a score or target does not automatically end an Arcade match. A rule must check it and call `EndGameMode`.
 - Arcade variables store numbers in slots 0–31; Portal variables can hold other value types.
@@ -78,7 +78,7 @@ Keep the first sentence about what the learner can do; include Arcade limits whe
 - `AllPlayers` is deprecated in this SDK; `GetAllPlayers` is the current Portal name. Arcade retains `AllPlayers` and its stable block ID for existing projects.
 - `DisplayGameModeMessage` is not declared in this SDK's `index.d.ts`; `code/modlib/index.ts` comments out calls to it and supplies a widget workaround. Arcade's working message block is not evidence that the corresponding Portal API works.
 
-Do not automatically replace these descriptions when updating the SDK: compare behavior and adapt the help. `tests/block-docs.cjs`, called by the local and hosted browser checks, reads actual custom block tooltips to catch missing or stale help. The exported project PNG carries these comments with its source, so learners do not need another documentation download.
+Do not automatically replace these descriptions when updating the SDK: compare behavior and adapt the help. `tests/block-docs.cjs`, called by the local and hosted browser checks, reads actual custom block tooltips to catch missing or stale help. The exported project PNG carries these comments with its source, so creators do not need another documentation download.
 
 ### Procedure: bringing SDK descriptions into Arcade
 
@@ -117,7 +117,7 @@ This is a **manual, reviewed adaptation**, not a generated documentation sync. N
 
 6. **Maintain the real-editor help check.** `tests/block-docs.cjs` creates each custom block in the live Blockly workspace, reads `getTooltip()`, and disposes of the temporary block with Blockly events disabled. Its expected phrases check that meaningful help reached each block and that raw `@param` tags did not leak into the tooltip. Add coverage when adding a block; change a phrase assertion only after reviewing the new description. This checks tooltip text, not the visual layout of a hover popup or every parameter-help UI.
 
-7. **Build, export, and check the exact learner artifact.** From this repository, using the existing sibling toolchain:
+7. **Build, export, and check the exact creator artifact.** From this repository, using the existing sibling toolchain:
 
    ```sh
    node ../pxt-arcade/node_modules/pxt-core/built/pxt.js build
@@ -127,11 +127,11 @@ This is a **manual, reviewed adaptation**, not a generated documentation sync. N
    git diff --check
    ```
 
-   The local browser check runs the tooltip assertions, exports a baseline project PNG, imports it into a fresh context, and checks Blocks-first startup and an editable damage change. The hosted check imports those same PNG bytes and runs the tooltip assertions again, proving the help is carried in the artifact rather than supplied by repository files. It also checks startup, custom blocks, and tilemap editing. This is not a full gameplay or learner-usability test.
+   The local browser check runs the tooltip assertions, exports a baseline project PNG, imports it into a fresh context, and checks Blocks-first startup and an editable damage change. The hosted check imports those same PNG bytes and runs the tooltip assertions again, proving the help is carried in the artifact rather than supplied by repository files. It also checks startup, custom blocks, and tilemap editing. This is not a full gameplay or creator-usability test.
 
    The deliverable is `local/exports/arcade-shooter.png`. Local evidence includes `local/exports/validation.json`, `local/editor-smoke/block-docs.json`, `hosted-block-docs.json`, and `hosted-result.json`. A comment-only source change still needs a new export: an older PNG cannot acquire the new help. Do not distribute evidence screenshots as project PNGs.
 
-8. **Review and record durable differences.** Update this reference when a newer SDK reveals a changed name, deprecation, or behavior difference. Keep source/version and maintenance instructions here, repeatable checks in `VALIDATION.md`, and learner usage in `README.md`. Do not vendor SDK dumps or add per-run logs to the docs. Commit or publish only with approval.
+8. **Review and record durable differences.** Update this reference when a newer SDK reveals a changed name, deprecation, or behavior difference. Keep source/version and maintenance instructions here, repeatable checks in `VALIDATION.md`, and creator usage in `README.md`. Do not vendor SDK dumps or add per-run logs to the docs. Commit or publish only with approval.
 
 ## Porting checklist
 

@@ -1,4 +1,4 @@
-// Generic, non-blocking, single-screen messages. No learner event/action Blocks.
+// Non-blocking notifications and announcements.
 namespace messages {
     class Entry {
         until = 0
@@ -58,7 +58,6 @@ namespace messages {
         if (queue.length) queue[0].until = now + queue[0].duration
     }
 
-    // Engine integration: called once per update, never pauses gameplay.
     export function update(now: number): void {
         advance(notifications, now)
         advance(announcements, now)

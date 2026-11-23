@@ -55,6 +55,6 @@ module.exports = async function checkBlockDocs(editor) {
         assert.ok(tooltips[type].includes(fragment), `${type} tooltip includes ${JSON.stringify(fragment)}: ${tooltips[type]}`)
         assert.ok(!tooltips[type].includes('@param'), `${type} does not leak raw JSDoc tags`)
     }
-    console.log(`PASS: ${Object.keys(expected).length} custom block tooltips contain learner help in the real editor`)
+    console.log(`PASS: ${Object.keys(expected).length} custom block tooltips contain creator help in the real editor`)
     return tooltips
 }

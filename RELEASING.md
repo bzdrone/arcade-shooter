@@ -2,9 +2,9 @@
 
 The project PNG belongs in a versioned GitHub Release. GitHub Pages is optional documentation hosting, not required.
 
-The learner download list is deliberately small: **arcade-shooter.png** and **INTRO.md** only. The introduction links to optional activities online. Do not attach lesson files, a separate license, checksums, or build records; keep the license in the repository and supporting records locally. GitHub also adds source-code archives automatically; release notes should tell learners to ignore those.
+The creator download list is deliberately small: **arcade-shooter.png** and **INTRO.md** only. The introduction links to optional activities online. Do not attach lesson files, a separate license, checksums, or build records; keep the license in the repository and supporting records locally. GitHub also adds source-code archives automatically; release notes should tell creators to ignore those.
 
-Each release has a descriptor and notes under `releases/<version>.json` and `releases/<version>.md`. The descriptor pins the tested game commit, the PNG's byte count and SHA-256, and handouts to retain in local preparation records (asset name → repository path). Historical release notes describe their original attachments; new release notes must list only the two learner downloads. Preview releases are learner-test candidates, not validated lessons.
+Each release has a descriptor and notes under `releases/<version>.json` and `releases/<version>.md`. The descriptor pins the tested game commit, the PNG's byte count and SHA-256, and handouts to retain in local preparation records (asset name → repository path). Historical release notes describe their original attachments; new release notes must list only the two creator downloads. Preview releases are creator-test candidates, not validated lessons.
 
 ## Prepare locally
 
@@ -28,16 +28,16 @@ Do not change the pinned checksum to bypass a validation failure. A changed game
 ## Before GitHub publication
 
 1. **Confirm the destination repository and visibility with the owner.** The project is published at `origin` (public). A private repository's releases are not publicly downloadable; choose access intentionally.
-2. Review the staged notes and introduction. Check that `INTRO.md` links to the optional activities and license online, and that those pages are available to learners. Handouts are not embedded in the PNG.
+2. Review the staged notes and introduction. Check that `INTRO.md` links to the optional activities and license online, and that those pages are available to creators. Handouts are not embedded in the PNG.
 3. Obtain approval to commit the preparation changes. Tag the resulting clean commit, which includes the game, handouts, notes and preparation tool, not only the tested gameplay commit.
 4. Rerun preparation after that commit; verify `workingTreeDirty` is false and `preparedFromCommit` is the intended tag target in the evidence directory's `release-manifest.json`. Check `SHA256SUMS` from inside that evidence directory (`sha256sum -c SHA256SUMS` in Bash). Confirm the staged PNG and introduction match their evidence copies.
 5. Obtain approval to configure/create the destination and push the reviewed commit/tag. Do not assume permission to publish from permission to prepare locally.
 6. On GitHub, create a **draft prerelease** for the version's tag, targeting the reviewed preparation commit. Use the prepared release notes as the body and attach only **arcade-shooter.png** and **INTRO.md**. Do not attach `release-notes.md` or anything from the evidence directory.
-7. Review the draft. Make clear that learners download the PNG, not GitHub's automatic source archives. Obtain final publication approval before making it available.
+7. Review the draft. Make clear that creators download the PNG, not GitHub's automatic source archives. Obtain final publication approval before making it available.
 8. After publication, download the PNG from the release assets and confirm its checksum matches the validated candidate. Record the release URL/tag in PLAN.md. Do not substitute an image preview or re-encoded copy.
 
 GitHub CLI is available locally, but no `gh` publication or repository-creation command is part of the preparation helper. The GitHub web UI is equally suitable once the destination and permissions are agreed.
 
 ## Scope and limits
 
-A release needs no website, new packages, MakeCode share link, or embedded public simulator. Those would be separate decisions. Keep the tested PNG intact, retain separate handouts, and wait for an actual learner before claiming learning effectiveness.
+A release needs no website, new packages, MakeCode share link, or embedded public simulator. Those would be separate decisions. Keep the tested PNG intact, retain separate handouts, and wait for an actual creator before claiming learning effectiveness.

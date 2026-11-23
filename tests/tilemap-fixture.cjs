@@ -1,9 +1,10 @@
 // Decode the committed PXT resource without requiring the Arcade toolchain.
 const fs = require('node:fs')
 const path = require('node:path')
-module.exports = function levelFixture() {
+module.exports = function levelFixture(name = 'trainingYard') {
     const jres = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'tilemap.g.jres'), 'utf8'))
-    const asset = Object.values(jres).find(entry => entry.mimeType === 'application/mkcd-tilemap')
+    const asset = Object.values(jres).find(entry => entry.mimeType === 'application/mkcd-tilemap' && entry.displayName === name)
+    if (!asset) throw new Error(`Unknown map: ${name}`)
     const bytes = Buffer.from(Buffer.from(asset.data, 'base64').toString(), 'hex')
     const size = bytes[0], width = bytes.readUInt16LE(1), height = bytes.readUInt16LE(3)
     const indices = bytes.subarray(5, 5 + width * height)

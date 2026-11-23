@@ -18,10 +18,20 @@ const teamSimulator = require('./team-simulator.cjs')
 // executable text, block structure/fields, and strict implementation/asset checks.
 function sourceText(name, text) {
     text = text.replace(/\r\n/g, '\n')
-    if (name.endsWith('.jres')) return JSON.stringify(JSON.parse(text))
+    if (name.endsWith('.jres')) {
+        const stable = value => Array.isArray(value) ? value.map(stable)
+            : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, v]) => [key, stable(v)])) : value
+        return JSON.stringify(stable(JSON.parse(text)))
+    }
     if (name === 'main.ts') return text.split('\n').filter(line => !/^\s*\/\//.test(line)).join('\n')
     // The asset editor shortens references inside the myTiles namespace.
-    if (name === 'tilemap.g.ts') return text.replace(/return myTiles\.(transparency16|yardFloor|yardWall|yardCover|yardLane|blueSpawn|redSpawn);/g, 'return $1;')
+    if (name === 'tilemap.g.ts') return text
+        .replace(/return myTiles\.(transparency16|yardFloor|yardWall|yardCover|yardLane|blueSpawn|redSpawn);/g, 'return $1;')
+        .replace(/(switch\(helpers.stringTrim\(name\)\) \{\n)([\s\S]*?)(        }\n)/, (all, start, body, end) => {
+            const maps = body.match(/            case "[^"]+":\n            case "[^"]+":return tiles\.createTilemap\([\s\S]*?\);\n/g)
+            // Only normalize complete map cases; never discard unmatched source.
+            return maps && maps.join('') === body ? start + maps.sort().join('') + end : all
+        })
     if (name === 'main.blocks') return text.replace(/<variables><\/variables>/g, '')
         .replace(/<data>[^<]*<\/data>/g, '').replace(/ [xy]="\d+"/g, '')
         .replace(/>\s+</g, '><').trim()
@@ -110,6 +120,16 @@ async function main() {
         async function snapshot() { return sim.evaluate(() => window.team.snapshot()) }
         async function button(key, down) {
             await sim.evaluate(({ key, down }) => pxsim.runtime.board.handleKeyEvent(key, down), { key, down })
+        }
+        if (process.argv.includes('--maps')) {
+            await require('./maps-simulator.cjs')({ sim, page, command, editor, text, button, sleep, artifacts,
+                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
+            return
+        }
+        if (process.argv.includes('--scrolling')) {
+            await require('./scrolling-simulator.cjs')({ sim, page, command, editor, text, button, sleep, artifacts,
+                screenshot: file => page.screenshot({ path: path.join(artifacts, file) }) })
+            return
         }
         if (process.argv.includes('--mod')) {
             await require('./engine-features.cjs').checkMod({ sim, page, command, editor, text, button, sleep,
