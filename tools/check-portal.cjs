@@ -1,10 +1,11 @@
-// Author-only: type-check the Portal-side example scripts in portal/ against a local
-// Battlefield 6 Portal SDK. Uses the TypeScript compiler already installed with the
-// sibling pxt-arcade toolchain; adds no dependency. Does not run anything in Portal.
+// Author-only: type-check Portal scripts against a local Battlefield 6 Portal SDK:
+// the examples in portal/ by default, or the given scripts (such as converter
+// output). Each script's <name>.strings.json must hold every mod.stringkeys key it
+// uses. Uses the TypeScript compiler already installed with the sibling pxt-arcade
+// toolchain; adds no dependency. Does not run anything in Portal.
 //
-//   node tools/check-portal.cjs <path-to-portal-sdk>     (or set PORTAL_SDK)
+//   node tools/check-portal.cjs <path-to-portal-sdk> [script.ts ...]   (or set PORTAL_SDK)
 const fs = require('node:fs')
-const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
@@ -17,8 +18,10 @@ if (!process.argv[2] && !process.env.PORTAL_SDK || !fs.existsSync(types)) {
 }
 const tsc = path.resolve(root, '../pxt-arcade/node_modules/typescript/bin/tsc')
 const version = JSON.parse(fs.readFileSync(path.join(sdk, 'sdk.version.json'), 'utf8'))
-const scripts = fs.readdirSync(path.join(root, 'portal')).filter(f => f.endsWith('.ts')).map(f => path.join(root, 'portal', f))
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'portal-check-'))
+const given = process.argv.slice(3).map(f => path.resolve(f))
+const scripts = given.length ? given : fs.readdirSync(path.join(root, 'portal')).filter(f => f.endsWith('.ts')).map(f => path.join(root, 'portal', f))
+fs.mkdirSync(path.join(root, 'local'), { recursive: true })
+const dir = fs.mkdtempSync(path.join(root, 'local', 'portal-check-'))
 try {
     const config = path.join(dir, 'tsconfig.json')
     fs.writeFileSync(config, JSON.stringify({

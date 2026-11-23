@@ -32,6 +32,22 @@ Mod layer checks cover handlers registered after startup still receiving game st
 
 Run `node tools/check-portal.cjs <path-to-portal-sdk>` (or set `PORTAL_SDK`). It type-checks `portal/*.ts` against that SDK's `mod` declarations and `modlib`, using the TypeScript compiler bundled with the sibling toolchain, and checks that every `mod.stringkeys` key exists in the matching `.strings.json`. It does not run anything in Portal; treat Portal behavior as untested until played there.
 
+## Arcade to Portal converter
+
+```sh
+node --test tests/portal-convert.test.mjs                # PORTAL_SDK=<sdk> also type-checks the output
+node --test tests/portal-runtime.test.mjs                # converted script against a simulated Portal
+node tests/portal-site.cjs [project.png]                 # default: local/exports/arcade-shooter.png
+```
+
+The runtime simulation runs a converted gun game script against mocks of the Portal behaviour recorded in PORTAL.md: new bots take the lowest free player id (also across teams), one bot per AI spawner, bots leave after dying, and `RemoveEquipment` throws for empty slots. It checks that both teams fill and refill after the respawn delay through repeated deaths without extra or lost bots, that a bot keeps its seat, level and weapon across lives, and that later weapon changes clear only the filled slot. It cannot show how bots behave in Portal.
+
+The host tests build their own project PNGs from the repository files (JSON and, with the sibling toolchain's `lzma` package, LZMA payloads) and check the LZMA decoder against MakeCode's compressor. They check the training yard's map edits (every wall tile built, unique ids, links that resolve, team sides, everything inside the combat area), map errors (missing spawns, too large), deathmatch, gun game and no-mode output, a learner program (waits through a helper function, variables, joined message text, an Arcade-only statement), unreadable code, and too many message values. With `PORTAL_SDK` set they type-check the converted scripts for all three modes against the SDK; with a local export they also convert it end to end.
+
+The browser check serves `site/` locally, loads the PNG through the real file input at desktop size (light) and phone size (dark), and checks for page errors, a successful conversion, the downloads, both map previews and no horizontal scrolling. It also checks that the page's files are identical to the command-line converter's. Inspect `local/portal-site/desktop.png` and `phone.png`.
+
+To check map edits with the SDK's own converter, see PORTAL.md. None of these checks shows that the output works in Portal; only playing it there does.
+
 ## Compatibility probe
 
 Run `node tests/editor-smoke.cjs --scratch` to build a temporary Arcade project outside this repository using copies of existing bundled dependencies. It tests class-union dispatch, Blocks connection acceptance/rejection and an edited TS ↔ Blocks round-trip, and concurrent handlers around a `pause`-based wait. No probe APIs are packaged in the game. Results/screenshots go to ignored editor evidence. Normal rule tests also cover initial/respawn deployment, numeric variable persistence, team/player score isolation, roster-copy queries, statistics and self-inflicted/external-removal conventions.

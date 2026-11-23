@@ -1,6 +1,6 @@
 # Portal-side examples (author files)
 
-An author-side experiment: a port of the Arcade gun game to Battlefield 6 Portal, to check that the `mod` layer's shape is close enough to Portal's. Porting modes is not a project goal. These files are **not** part of the Arcade project or its PNG, and learners do not need them.
+A hand-written port of the Arcade gun game to Battlefield 6 Portal. It checked that the `mod` layer's shape is close enough to Portal's, and the Arcade to Portal converter (`../site/`) generates scripts modelled on it. These files are **not** part of the Arcade project or its PNG, and learners do not need them.
 
 - `gungame.ts`: the Portal port of `../gungame.ts`. It contains the Portal side of the weapons compatibility library (the `weapons` namespace, mapping each category to one real Portal item) followed by the gun game rules. Every change from the Arcade version is marked `PORT:`; [PORTAL.md](../PORTAL.md) lists them as a checklist.
 - `gungame.strings.json`: the message text for that script. Portal looks up message text by key, with up to three `{}` placeholders.

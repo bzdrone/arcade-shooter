@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arcade to Portal</title>
+<meta name="description" content="Turn a MakeCode Arcade shooter project into Battlefield 6 Portal map edits and a rules script, in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%232e5fa8%22/%3E%3Crect x=%223%22 y=%223%22 width=%224%22 height=%2210%22 fill=%22%23fff%22/%3E%3Ccircle cx=%2211%22 cy=%228%22 r=%222.5%22 fill=%22%23fff%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header>
+    <h1>Arcade to Portal</h1>
+    <p class="lead">Turn your MakeCode Arcade shooter into a Battlefield 6 Portal experience: your map becomes walls, cover and spawns on the Portal Sandbox, and your rules become a Portal script.</p>
+</header>
+
+<main>
+    <section id="drop" class="drop" tabindex="0" aria-describedby="drop-help">
+        <p class="drop-title">Drop your Arcade project PNG here</p>
+        <p id="drop-help">or <label class="file-button">choose a file<input id="file" type="file" accept="image/png,.png"></label></p>
+        <p class="note">Use the project image saved from the Arcade editor, not a screenshot. Your project stays in this browser; nothing is uploaded.</p>
+    </section>
+
+    <section id="status" class="status" role="status" aria-live="polite" hidden></section>
+
+    <section id="result" hidden>
+        <div class="maps">
+            <figure>
+                <canvas id="arcade-map" aria-label="Arcade tilemap"></canvas>
+                <figcaption>Arcade map</figcaption>
+            </figure>
+            <figure>
+                <canvas id="portal-map" aria-label="Portal layout seen from above"></canvas>
+                <figcaption id="portal-caption">Portal layout from above</figcaption>
+            </figure>
+        </div>
+        <ul class="legend" aria-label="Legend">
+            <li><span class="swatch wall"></span>Wall (10 m stone)</li>
+            <li><span class="swatch cover"></span>Cover (chest high)</li>
+            <li><span class="swatch blue"></span>Team 1 spawn</li>
+            <li><span class="swatch red"></span>Team 2 spawn</li>
+        </ul>
+
+        <div class="columns">
+            <div>
+                <h2>What was converted</h2>
+                <dl id="facts"></dl>
+            </div>
+            <div>
+                <h2>Download for Portal</h2>
+                <div id="downloads" class="downloads"></div>
+                <p class="note">Keep the three files together. The script expects this map and these messages.</p>
+            </div>
+        </div>
+
+        <details id="warnings-box" hidden>
+            <summary>Notes about your project (<span id="warning-count"></span>)</summary>
+            <ul id="warnings"></ul>
+        </details>
+
+        <details>
+            <summary>Show the Portal script</summary>
+            <pre id="script"></pre>
+        </details>
+    </section>
+
+    <section class="howto">
+        <h2>Play it in Portal</h2>
+        <ol>
+            <li>Open the Battlefield 6 Portal web builder and create a new experience.</li>
+            <li>Choose the map <strong>Portal Sandbox</strong> (<code>MP_Portal_Sand</code>) and add the map edits file (<code>.spatial.json</code>) to it.</li>
+            <li>In the rules, use TypeScript: add the script (<code>.ts</code>) and its strings file (<code>.strings.json</code>).</li>
+            <li>Start the experience. Bots fill each team to two soldiers, as in Arcade.</li>
+        </ol>
+        <p class="note">This converter is experimental and its output has not yet been tested in Portal. The Arcade project is a top-down game; in Portal the same map and rules play in first person, with real weapons for the pistol, SMG, shotgun and knife.</p>
+    </section>
+</main>
+
+<footer>
+    <p>Part of the <a href="https://github.com/bzdrone/arcade-shooter">Arcade shooter</a> learning project. Not affiliated with Electronic Arts or Microsoft.</p>
+</footer>
+</body>
+</html>
