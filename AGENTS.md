@@ -6,6 +6,8 @@ Read PORTAL.md before designing or changing the Portal `mod` learning API, weapo
 
 Keep design decisions and open work in PLAN.md, repeatable checks in VALIDATION.md, and durable descriptions and usage in README.md. Docs describe the project as it is, not progress reports: no slice or milestone logs, superseded checksums or per-run test counts. History belongs in Git.
 
+Project boundaries: this project owns its product decisions, code, validation, deliverables, and temporary task operations. Keep its task handoffs, browser continuation notes, inspection displays, and dedicated browser session/profile state under ignored `local/`; never force-add or publish them. The private research collection owns captured sources, provenance, research findings, and personal research working agreements—not this project's browser/task handoffs. The research toolkit owns reusable tools, generic safety contracts, skills, and synthetic tests, without private account data or personal consent records. The hub owns discovery/routing only. Cross-project work does not merge commit or publication permissions. Do not move an active browser profile; document any legacy-location exception locally and relocate only after orderly shutdown.
+
 Handoffs, run logs, scratch scripts and investigation notes are temporary working material (usually under ignored `local/`). Remove them once the work they served is done: a handoff when the receiving agent has finished, a log when its investigation is resolved. When finishing a task, check for leftovers and remove them, or ask about any worth keeping.
 
 - This repository is an authoring environment, not the creator deliverable. Target an importable MakeCode Arcade project PNG containing the required implementation and customization surface.
