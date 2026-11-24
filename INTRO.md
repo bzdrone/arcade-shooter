@@ -70,4 +70,6 @@ You changed a number, tried the game, and checked what happened. That is enough 
 
 Want to try another small experiment? Read [Activity 1: Change experience modifiers](https://github.com/bzdrone/arcade-shooter/blob/main/lessons/01-weapon-tuning.md) online. No extra download is needed. Save [writing your own game rules](https://github.com/bzdrone/arcade-shooter/blob/main/lessons/02-mod-rules.md) for later, once you are comfortable changing blocks.
 
+Later, when you are ready to try your map and rules in Battlefield 6 Portal, save your shooter as a project PNG and open the experimental [Arcade to Portal converter](https://bzdrone.github.io/arcade-shooter/). It produces the Portal map edits, rules script, and messages in your browser; nothing is uploaded. It converts the supported shooter maps and rules, not arbitrary MakeCode games.
+
 These instructions are a separate handout; they do not appear inside the game. The game is shared under the [MIT license](https://github.com/bzdrone/arcade-shooter/blob/main/LICENSE).

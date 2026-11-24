@@ -24,13 +24,13 @@ ARCADE_SITE_DIR=local/site node tests/portal-site.cjs
 
 This serves the converter under `/arcade-shooter/`, checks desktop and phone conversion, and compares downloads with the command-line converter. See VALIDATION.md for prerequisites.
 
-## Prepared GitHub Pages deployment
+## GitHub Pages deployment
 
 `.github/workflows/pages.yml` is manual-only (`workflow_dispatch`); it does not deploy on push or pull request. Its build job checks packaging and uploads only `local/site/`. Its separate deployment job has Pages/OIDC permissions and uses the `github-pages` environment. It does not use AWS or the separate hosting project's deployment pipeline.
 
-The workflow has been prepared, not run. Pages is not enabled by this change, and no live URL is claimed.
+The live converter is [Arcade to Portal](https://bzdrone.github.io/arcade-shooter/). Pages uses the GitHub Actions source with HTTPS enforced. The `github-pages` environment restricts deployment to the `main` branch. No required-reviewer gate is configured; manual workflow dispatch is the publication step, not an additional approval gate. The hosted page has passed desktop and phone conversion checks using a compound gun-game PNG, with output matching command-line conversion using the deployed runtime bytes.
 
-After explicit publication approval:
+For future changes, obtain explicit commit/push/publication approval before deploying:
 
 1. Commit and push the reviewed changes to the default branch.
 2. In the repository's **Settings → Pages**, choose **GitHub Actions** as the build/deployment source.
@@ -38,4 +38,4 @@ After explicit publication approval:
 4. In **Actions**, manually run **Deploy converter to GitHub Pages** from the approved default-branch revision. This publishes the artifact; it is not a preview-only build.
 5. Use the URL reported by the deployment, check conversion there, then link the verified URL from README.md and INTRO.md.
 
-Before publication, finish the latest Portal runtime playcheck and verify the page's Portal-builder instructions. Packaging checks and browser conversion tests do not prove that generated files work in Portal. No custom domain or DNS changes are needed for the default Pages URL.
+The site is experimental: a focused live Portal playtest confirmed compound gun-game weapon progression and readable scores. Respawn persistence, the final knife-elimination win, and broader Builder instructions remain unverified. Packaging checks and browser conversion tests do not prove that generated files work in Portal. No custom domain or DNS changes are needed for the default Pages URL.
