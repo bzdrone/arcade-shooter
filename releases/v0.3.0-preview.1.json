@@ -1,0 +1,9 @@
+{
+  "version": "v0.3.0-preview.1",
+  "gameSourceCommit": "dda19c7283066ecae65cf59113ba2f2026dbda1f",
+  "pngSha256": "810f0fe3df16b82104d8bb4c21effe29aac5150d7b62d9b7d08b88fc47e8eea9",
+  "pngBytes": 65747,
+  "handouts": {
+    "INTRO.md": "INTRO.md"
+  }
+}

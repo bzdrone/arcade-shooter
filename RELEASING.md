@@ -1,6 +1,6 @@
 # Preparing a preview release
 
-The project PNG belongs in a versioned GitHub Release. GitHub Pages is optional documentation hosting, not required.
+The project PNG belongs in a versioned GitHub Release. The separately hosted GitHub Pages converter is linked from the introduction; it is not an attached release asset or required for importing and playing the PNG in Arcade.
 
 The creator download list is deliberately small: **arcade-shooter.png** and **INTRO.md** only. The introduction links to optional activities online. Do not attach lesson files, a separate license, checksums, or build records; keep the license in the repository and supporting records locally. GitHub also adds source-code archives automatically; release notes should tell creators to ignore those.
 
