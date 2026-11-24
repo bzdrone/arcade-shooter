@@ -46,6 +46,17 @@ function simulatePortal() {
         Message: (key, ...args) => ({ key, args }),
         CustomNotificationSlots: { HeaderText: 'header' },
         DisplayCustomNotificationMessage: (message, slot) => sim.header.push({ slot, ...message }),
+        UIAnchor: { TopCenter: 'top-center', Center: 'center' },
+        UIBgFill: { Solid: 'solid' },
+        CreateVector: (x, y, z) => ({ x, y, z }),
+        GetUIRoot: () => 'root',
+        FindUIWidgetWithName: name => name,
+        AddUIText: (name, position, size, anchor, parent, visible, padding, bgColor, bgAlpha, bgFill, message, textSize) => {
+            sim.scorePanels = (sim.scorePanels || 0) + 1
+            sim.scorePanel = { name, position, size, anchor, bgColor, bgAlpha, bgFill, textSize }
+            sim.header.push({ slot: 'score-panel', ...message })
+        },
+        SetUITextLabel: (widget, message) => sim.header.push({ slot: 'score-panel', ...message }),
         SetFriendlyFire: enabled => { sim.friendlyFire = enabled },
         SetPlayerMaxHealth: (p, value) => { p.maxHealth = value },
         SetPlayerIncomingDamageFactor: (p, value) => { p.incomingDamagePercent = value },
@@ -210,11 +221,16 @@ test('deathmatch shows the team scores and names bots by team', async () => {
     await run(sim, events, 6)
     const names = sim.names.map(n => n.key + ' ' + n.args.join())
     assert.deepEqual(names.sort(), ['arcadeBlueBot 1', 'arcadeRedBot 1', 'arcadeRedBot 2'])
-    assert.deepEqual(sim.header.at(-1), { slot: 'header', key: 'arcadeScoreTarget', args: [0, 0, 10] }, 'target shown at the start')
+    assert.deepEqual(sim.header.at(-1), { slot: 'score-panel', key: 'arcadeScoreTarget', args: [0, 0, 10] }, 'target shown at the start')
     for (let i = 0; i < 2; i++) kill(sim, events, bots(sim, 2)[0], human)
     assert.deepEqual(sim.header.at(-1).args, [2, 0, 10], 'score updated straight after each kill')
     for (let i = 0; i < 8; i++) { await run(sim, events, 7); kill(sim, events, bots(sim, 2)[0], human) }
     assert.equal(sim.winner && sim.winner.team, 1, 'blue wins at ten')
+    assert.equal(sim.scorePanels, 1, 'one persistent score panel, updated rather than recreated')
+    assert.equal(sim.scorePanel.anchor, 'top-center')
+    assert.equal(sim.scorePanel.size.x, 680, 'room for both teams and the target')
+    assert.equal(sim.scorePanel.bgFill, 'solid')
+    assert.equal(sim.scorePanel.bgAlpha, 0.85, 'dark high-contrast backing')
 })
 
 test('gun game ends on the knife kill, not when a team score reaches the target', async () => {

@@ -13,14 +13,17 @@ const path = require('node:path')
 const puppeteer = require('../../pxt-arcade/node_modules/puppeteer')
 
 const root = path.resolve(__dirname, '..')
-const site = path.join(root, 'site')
+const site = path.resolve(root, process.env.ARCADE_SITE_DIR || 'site')
+const basePath = '/arcade-shooter/'
 const png = path.resolve(process.argv[2] || path.join(root, 'local/exports/arcade-shooter.png'))
 const outDir = path.join(root, 'local/portal-site')
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.ts': 'text/plain', '.json': 'application/json' }
 
 function serve() {
     const server = http.createServer((req, res) => {
-        const file = path.join(site, decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/\/$/, '/index.html'))
+        const pathname = decodeURIComponent(new URL(req.url, 'http://x').pathname)
+        if (!pathname.startsWith(basePath)) { res.writeHead(404); res.end(); return }
+        const file = path.join(site, pathname.slice(basePath.length).replace(/^$/, 'index.html'))
         if (!file.startsWith(site) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return }
         res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' })
         fs.createReadStream(file).pipe(res)
@@ -32,7 +35,7 @@ function serve() {
     assert.ok(fs.existsSync(png), `Project PNG not found: ${png}`)
     fs.mkdirSync(outDir, { recursive: true })
     const server = await serve()
-    const url = `http://127.0.0.1:${server.address().port}/`
+    const url = `http://127.0.0.1:${server.address().port}${basePath}`
     const browser = await puppeteer.launch({
         executablePath: process.env.ARCADE_BROWSER || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
         headless: true, args: ['--mute-audio']

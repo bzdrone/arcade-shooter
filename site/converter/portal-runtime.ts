@@ -301,17 +301,24 @@ namespace arcade {
         return targetScore
     }
 
-    // Arcade's HUD shows both team scores and the target; Portal shows them in the header slot.
+    // The notification header is too narrow for both scores and the target.
     let shownScore = ''
+    let scoreWidget: mod.UIWidget | undefined
 
     export function showScore(): void {
         try {
             const blue = GetGameModeScore(mod.GetTeam(1)), red = GetGameModeScore(mod.GetTeam(2)), target = targetScore
             const text = blue + ':' + red + ':' + target
             if (text == shownScore || (!blue && !red && !target)) return
-            shownScore = text
             const message = target > 0 ? mod.Message(mod.stringkeys.arcadeScoreTarget, blue, red, target) : mod.Message(mod.stringkeys.arcadeScore, blue, red)
-            mod.DisplayCustomNotificationMessage(message, mod.CustomNotificationSlots.HeaderText, 100000)
+            if (!scoreWidget) {
+                mod.AddUIText('arcade-score', mod.CreateVector(0, 85, 0), mod.CreateVector(680, 64, 0),
+                    mod.UIAnchor.TopCenter, mod.GetUIRoot(), true, 12,
+                    mod.CreateVector(0, 0, 0), 0.85, mod.UIBgFill.Solid, message,
+                    28, mod.CreateVector(1, 1, 1), 1, mod.UIAnchor.Center)
+                scoreWidget = mod.FindUIWidgetWithName('arcade-score', mod.GetUIRoot())
+            } else mod.SetUITextLabel(scoreWidget, message)
+            shownScore = text
             const portalBlue = mod.GetGameModeScore(mod.GetTeam(1)), portalRed = mod.GetGameModeScore(mod.GetTeam(2))
             log('score blue ' + blue + ' red ' + red + ' target ' + target +
                 (portalBlue != blue || portalRed != red ? ' (Portal has blue ' + portalBlue + ' red ' + portalRed + ')' : ''))

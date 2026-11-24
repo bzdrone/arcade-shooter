@@ -151,7 +151,7 @@ Check the result with `node tools/check-portal.cjs <path-to-portal-sdk>` (type-c
 
 ## Arcade to Portal converter
 
-`site/converter/` turns an exported Arcade project PNG into three files: `<name>.spatial.json` (map edits), `<name>.ts` (rules script) and `<name>.strings.json` (message text). Design decisions are in PLAN.md; this section records the SDK facts it relies on. Nothing here has been confirmed in Portal yet.
+`site/converter/` turns an exported Arcade project PNG into three files: `<name>.spatial.json` (map edits), `<name>.ts` (rules script) and `<name>.strings.json` (message text). Design decisions are in PLAN.md; this section records the SDK facts it relies on. Focused Portal playtest observations are recorded under Rules script below; SDK-backed assumptions remain distinct from observed behavior.
 
 ### Map edits (`.spatial.json`)
 
@@ -184,7 +184,7 @@ Findings from playing converted output in Portal:
 - No exceptions in a full gun game run with the per-slot weapon clearing, and weapon changes took effect in play.
 - In play, soldiers spawning towards the map centre faced sensibly, and the 10 m walls and chest-high cover (scales above) looked right.
 - Bots are named per seat (`SpawnAIFromAISpawner(spawner, name, team)`, "Blue bot 1", "Red bot 2"). With default names a friendly bot appeared to switch teams, consistent with its reused id being given to a new enemy bot.
-- Arcade's score HUD becomes the header custom notification slot (`DisplayCustomNotificationMessage(..., HeaderText, ...)`), refreshed after each kill and every second. Portal routes `mod.DisplayCustomNotificationMessage` to `modlib`'s widget implementation, so call it through `mod`; there is no need to import the `modlib` version.
+- The header notification clipped the deathmatch scores in the compound playtest: the supplied screenshot showed only the end of the target label in the top-right box. The runtime now creates a persistent 680 × 64 top-centre text widget with white 28-point text and an 85%-opaque black background, updating its label after score changes. In the subsequent converted compound gun-game playtest, the author confirmed weapon progression and that the score was readable. Weapon-level persistence across death/respawn and ending only after a knife elimination were not confirmed; this is a focused playcheck, not exhaustive validation.
 - **Player ids are reused.** A new bot takes the lowest free id, including an id last used by a bot on the other team. Never identify a bot by its id alone: the runtime matches each bot to its seat through `OnSpawnerSpawned`, which names the spawner, and fires in Portal before `OnPlayerDeployed`. Bots also fire `OnPlayerJoinGame`, and with `AISetUnspawnOnDead` they leave the game after dying.
 - A single AI spawner per team, asked for one bot at a time, produced both of its team's bots and their respawns. The converter still gives each bot its own spawner, as the SDK examples do, because `OnSpawnerSpawned` then identifies the bot.
 
